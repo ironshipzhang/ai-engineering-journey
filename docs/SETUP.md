@@ -1,4 +1,4 @@
-# 当前任务：最小开发环境
+# 最小开发环境：已完成
 
 ## 验收标准
 
@@ -56,7 +56,7 @@ hello.py 只用于验证环境，没有模型调用。
 Apple Command Line Tools 和 Git 2.39.5 已验证，本项目已执行 git init -b main。
 提交身份已按用户提供的信息设置在本仓库。初始提交包含最小文档、Python 配置和环境检查程序。
 用户已提供仓库地址，origin 已配置为 git@github.com:ironshipzhang/ai-engineering-journey.git。
-首次推送尚未完成：本机 SSH 身份与 GitHub 主机密钥待配置。
+SSH 认证成功，首次推送已完成，main 跟踪 origin/main。
 
 ## VS Code：已安装
 
@@ -67,9 +67,11 @@ Apple Command Line Tools 和 Git 2.39.5 已验证，本项目已执行 git init 
 - 打开 toy-agent/hello.py，使用 Python: Run Python File in Terminal；或在项目根目录终端执行 toy-agent/.venv/bin/python toy-agent/hello.py。
 - 若想在终端使用 code 命令，使用 Cmd+Shift+P → Shell Command: Install 'code' command in PATH，然后重开终端。目前未修改系统 PATH。
 
-CLI 已发出打开项目请求，未通过 UI 验证窗口或 Workspace Trust 状态。
+用户已在 VS Code 实际运行 hello.py，输出验证虚拟环境已启用。
 
-## 下一步：SSH 认证
+## SSH 认证：已完成（以下仅供首次配置参考）
+
+当前设备无需重复生成密钥。用户已添加公钥；GitHub 官方 Ed25519 主机密钥已保存于 ~/.ssh/known_hosts，认证与推送均成功。
 
 由用户在自己的终端操作，密钥和 passphrase 留在本机：
 

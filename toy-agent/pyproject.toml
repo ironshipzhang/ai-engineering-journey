@@ -1,0 +1,6 @@
+[project]
+name = "toy-agent"
+version = "0.1.0"
+description = "Small experiments for understanding LLM applications and agent mechanisms."
+requires-python = ">=3.12,<3.13"
+dependencies = []

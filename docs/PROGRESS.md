@@ -13,16 +13,19 @@
 - 已验证 .gitignore 排除 .venv、.tools、.cache、work 和 .env。
 - 用户接受每月 10 USD 以内模型费用，选择 DeepSeek 官方 API 为起点；已核对官方 deepseek-flash 的价格和 JSON / Tool Calls 支持。
 - 初始 Git 提交保存协作文档、Python 项目配置和已验证的环境检查程序。
+- origin 已配置为用户提供的 SSH 地址 git@github.com:ironshipzhang/ai-engineering-journey.git。
+- 已安装 VS Code 1.140.0 arm64 和 Microsoft Python 扩展及其依赖；已保存并验证 .vscode/ JSON 配置。
 
 ## Current
 
 - 首次提交 fdc88a7 已完成，用户已确认提交身份与私有仓库方案。
-- 浏览器控制超时，当前 GitHub 连接未提供创建仓库工具；等待用户创建空私有仓库并提供地址，随后配置远程与推送认证。
+- 用户已提供仓库地址；首次推送等待 SSH 密钥配置及主机密钥验证。检查时本机无 ~/.ssh 目录，ssh-agent 没有已加载身份。
+- 已执行 VS Code CLI 打开项目命令，未通过 UI 验证窗口或工作区信任状态。
 - Python 环境已经验证；系统 /usr/bin/python3 不作为项目运行环境。
 
 ## Next
 
-- 创建并关联 GitHub 私有仓库 ai-engineering-journey，完成首次推送。
+- 用户在终端生成 SSH 密钥并将公钥添加至 GitHub；验证 SSH 认证，确认远程仓库后完成首次推送。
 - 在准备好模型访问条件后，完成首次真实模型 API 调用。
 
 ## Open Questions

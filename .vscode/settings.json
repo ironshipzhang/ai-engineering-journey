@@ -1,0 +1,8 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/toy-agent/.venv",
+  "files.exclude": {
+    "**/__pycache__": true,
+    ".tools": true,
+    ".cache": true
+  }
+}

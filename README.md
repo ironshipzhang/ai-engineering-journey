@@ -16,4 +16,7 @@
 
 当前状态见 [docs/PROGRESS.md](docs/PROGRESS.md)。当前环境任务见 [docs/SETUP.md](docs/SETUP.md)。
 
-本目录使用 Git（main），初始提交保存最小文档与已验证的 Python 环境检查程序。尚未关联 GitHub 远程仓库。
+本目录使用 Git（main），初始提交保存最小文档与已验证的 Python 环境检查程序。
+origin 已配置为 git@github.com:ironshipzhang/ai-engineering-journey.git；SSH 认证和首次推送待完成。
+
+使用 VS Code 打开整个仓库目录，Python 解释器配置为 toy-agent/.venv。

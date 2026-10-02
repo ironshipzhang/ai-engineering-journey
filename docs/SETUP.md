@@ -55,7 +55,38 @@ hello.py 只用于验证环境，没有模型调用。
 
 Apple Command Line Tools 和 Git 2.39.5 已验证，本项目已执行 git init -b main。
 提交身份已按用户提供的信息设置在本仓库。初始提交包含最小文档、Python 配置和环境检查程序。
-远程仓库尚未创建或关联，用户选择 ai-engineering-journey 私有仓库。
+用户已提供仓库地址，origin 已配置为 git@github.com:ironshipzhang/ai-engineering-journey.git。
+首次推送尚未完成：本机 SSH 身份与 GitHub 主机密钥待配置。
+
+## VS Code：已安装
+
+- VS Code 1.140.0，arm64，安装于 /Applications/Visual Studio Code.app。
+- 已安装 Microsoft Python 扩展，以及自动安装的 Pylance、debugpy、Python Environments。
+- 打开整个 ai_engineer 文件夹；.vscode/settings.json 默认解释器指向 toy-agent/.venv。
+- 如需手动选择，使用 Cmd+Shift+P → Python: Select Interpreter，选择 toy-agent/.venv/bin/python。
+- 打开 toy-agent/hello.py，使用 Python: Run Python File in Terminal；或在项目根目录终端执行 toy-agent/.venv/bin/python toy-agent/hello.py。
+- 若想在终端使用 code 命令，使用 Cmd+Shift+P → Shell Command: Install 'code' command in PATH，然后重开终端。目前未修改系统 PATH。
+
+CLI 已发出打开项目请求，未通过 UI 验证窗口或 Workspace Trust 状态。
+
+## 下一步：SSH 认证
+
+由用户在自己的终端操作，密钥和 passphrase 留在本机：
+
+```sh
+ssh-keygen -t ed25519 -C "ironshipzhang@gmail.com"
+ssh-add --apple-use-keychain ~/.ssh/id_ed25519
+pbcopy < ~/.ssh/id_ed25519.pub
+```
+
+生成时使用默认保存路径并自行设置 passphrase。
+在 https://github.com/settings/keys 添加 Authentication Key，粘贴公钥。
+
+随后执行 ssh -T git@github.com，首次连接核对 GitHub 官方主机指纹：
+https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints
+
+成功认证的提示为 Hi ironshipzhang! You've successfully authenticated, but GitHub does not provide shell access.
+这一成功测试的退出码可能仍为 1，应以提示内容判断。
 
 ## 后续模型访问
 

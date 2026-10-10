@@ -94,7 +94,7 @@ https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/g
 
 选择 DeepSeek 官方 API，初期模型使用 deepseek-flash，月度预算目标不超过 10 USD。
 已于 2026-10-02 使用仓库外密钥完成一次真实调用，当前设备可以访问官方 API，认证和本次余额扣费条件满足；未查询账户余额或剩余额度。
-运行第一次调用（密钥文件必须是单行纯文本，不要复制进仓库）：
+运行当前工具调用与摘要流程（密钥文件必须是单行纯文本，不要复制进仓库）：
 
 ```sh
 toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --key-file /Users/ironshipzhang/Documents/secret/deepseek.txt
@@ -118,7 +118,7 @@ toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --key-file /Users/irons
 toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
 ```
 
-2026-10-10：9 项测试通过；真实结构化调用输入 215、输出 67、总计 282 tokens，stop 正常结束。
+历史记录（工具调用实现前）：2026-10-10，9 项测试通过；真实结构化调用输入 215、输出 67、总计 282 tokens，stop 正常结束。
 格式校验不验证事实：即使 blockers=[] 合法，也仍需与原文对照，判断是否漏掉阻塞项。
 缺少密钥的验证命令（预期退出码 1）：
 
@@ -126,7 +126,7 @@ toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
 toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --key-file /private/tmp/nonexistent-deepseek-key-01a0fd07
 ```
 
-本次真实调用：输入 99、输出 54、总计 153 tokens，结束原因 `stop`。按缓存全部未命中的峰值费率估算上限约 $0.0000945；实际费用以平台账单为准。
+2026-10-02 首次真实调用：输入 99、输出 54、总计 153 tokens，结束原因 `stop`。按缓存全部未命中的峰值费率估算上限约 $0.0000945；实际费用以平台账单为准。
 2026-10-02 查验官方 Flash 每百万 token 价格：缓存命中输入峰值 $0.006 / 非峰值 $0.003，未命中输入 $0.30 / $0.15，输出 $1.20 / $0.60。价格页面支持文本摘要所需的非思考模式；首次真实调用验证当前本地网络可达，未单独核实其他地区的可用性。
 预算目前是目标，尚未实现自动预算拦截。
 
@@ -145,3 +145,10 @@ toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --key-file /private/tmp
 - 2026-10-10 再查验官方价格与能力：deepseek-flash 支持 Tool Calls 和 JSON Output；每百万 token 缓存命中输入 $0.006 / $0.003、未命中输入 $0.30 / $0.15、输出 $1.20 / $0.60（峰值 / 非峰值）。本地真实调用验证当前设备可达；未查询账户剩余额度或验证其他地区。
 - 查验来源：https://api-docs.deepseek.com/quick_start/pricing/ 与 https://api-docs.deepseek.com/api/create-chat-completion/。
 - 结构正确不能保证事实正确，本次只人工核对一个虚构项目，不宣称已建立内容评估集。
+
+### Handoff 验证补充
+
+- 文档交接时重新运行上述离线测试命令：16 项全部通过；未读取真实密钥、未重复执行付费调用。
+- 用户提供的本地终端输出：首次输入 448、输出 36、总计 484 tokens，tool_calls；后续输入 335、输出 67、总计 402 tokens，stop；合计输入 783、输出 103、总计 886 tokens。该记录来自用户实际运行输出，不是本次离线测试生成。
+- 对照代码内虚构数据，用户运行的摘要包含完成接口、12 个单元测试、详情联调、迁移失败、小林排查、演示延期风险和下一步计划。虚构数据中的“12 个单元测试”是项目状态文本，不是本仓库当前的 16 项测试数量。
+- 未验证：真实 API 的非法调用、超时和 HTTP 失败场景；未建立事实质量评估集。当前超时测试通过模拟异常验证首次用量保留，不证明真实网络会在整个流程 30 秒内结束。

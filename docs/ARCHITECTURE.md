@@ -14,7 +14,7 @@
       其他       → 明确失败并结束
 ```
 
-- `request_completion` 每轮发送 tools 和 response_format=json_object，省略 tool_choice（有工具时 API 默认 auto）。关闭思考、非流式，输出上限为每次 400 tokens；JSON 输出规则同时写入 system 提示。
+- Loop 中的 `request_completion` 每轮发送 tools 和 response_format=json_object，省略 tool_choice（有工具时 API 默认 auto）。关闭思考、非流式，输出上限为每次 400 tokens；JSON 输出规则同时写入 system 提示。
 - `validate_tool_call` 要求 tool_calls 正常结束、恰好一个 function 调用、非空 ID、工具名为 get_project；arguments 从 JSON 字符串解析，必须且仅包含非空字符串 project_id。
 - `get_project` 仅支持 xingqiao，从代码内 PROJECT_STATUS 读取虚构项目状态，无写操作。模型提出调用，程序校验并显式执行。
 - `run_project_summary` 的 MAX_REQUESTS=5 包含所有工具决策与最终摘要请求。第五次请求可正常提交摘要；若仍提出工具调用，校验后报超限，不执行工具、不发送第六次请求。
@@ -39,4 +39,4 @@ stop 响应不能携带工具调用；没有成功项目数据时，即使摘要
 
 `evaluate_summary.py` 读取 `evals/project_summary_cases.json`，逐条将状态和共享 SUMMARY_PROMPT 发给模型。request_completion 的 with_tools=False 仅用于这条评估路径；Loop 默认仍提供工具。每条样例一次模型请求，不进入 Loop。
 
-有效摘要由共享 display_summary / parse_summary 校验后返回并写入新 JSON 文件，与原始状态、检查点、用量、错误和待评审标记一起保存。采集脚本不做语义评分，Codex 初评和待用户复核说明见 [EVALUATION.md](EVALUATION.md)。
+有效摘要由共享 display_summary / parse_summary 校验后返回并写入新 JSON 文件，与原始状态、检查点、用量、错误和待评审标记一起保存。采集脚本不做语义评分；保存结果的 Codex 复核记录及尚未经用户逐条确认的说明见 [EVALUATION.md](EVALUATION.md)。

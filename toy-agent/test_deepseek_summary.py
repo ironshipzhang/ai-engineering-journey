@@ -58,7 +58,7 @@ class SummaryValidationTests(unittest.TestCase):
 
     def test_truncation_is_failure_even_if_json_is_complete(self):
         response = {
-            "choices": [{"message": {"content": '{"progress":[],"blockers":[],"next_steps":[]}'}, "finish_reason": "length"}],
+            "choices": [{"message": {"role": "assistant", "content": '{"progress":[],"blockers":[],"next_steps":[]}'}, "finish_reason": "length"}],
             "usage": {"prompt_tokens": 10, "completion_tokens": 10, "total_tokens": 20},
         }
         output = io.StringIO()

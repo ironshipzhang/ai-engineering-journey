@@ -1,4 +1,4 @@
-"""Make one bounded DeepSeek request using only the Python standard library."""
+"""Run one read-only tool call and summarize its result in two bounded requests."""
 
 import argparse
 import json
@@ -37,26 +37,51 @@ def read_api_key(path: Path) -> str:
     return key
 
 
-def request_summary(api_key: str) -> dict:
+SUMMARY_PROMPT = (
+    "只依据提供的项目状态，用中文生成简短摘要，不要编造信息。"
+    "只返回 JSON 对象，不附带说明或 Markdown。"
+    "必须且仅包含 progress、blockers、next_steps 三个字段；"
+    "每个值是字符串数组，每项必须是非空字符串，没有对应信息时用空数组 []。"
+    "progress 包含已完成和进行中的进展，blockers 包含阻塞项及风险，"
+    "next_steps 包含下一步行动。"
+    '格式示例：{"progress":["接口已完成"],"blockers":[],"next_steps":["完成联调"]}'
+)
+GET_PROJECT_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "get_project",
+        "description": "按项目 ID 查询虚构项目状态，只读。",
+        "parameters": {
+            "type": "object",
+            "properties": {"project_id": {"type": "string", "description": "项目 ID，例如 xingqiao"}},
+            "required": ["project_id"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+
+def get_project(project_id: str) -> dict[str, str]:
+    """Read fixed fictional data; no database or write operation is involved."""
+    if project_id != "xingqiao":
+        raise SummaryError("项目不存在；未发送后续摘要请求。")
+    return {"project_id": project_id, "name": "星桥", "status": PROJECT_STATUS}
+
+
+def request_completion(api_key: str, messages: list[dict], *, with_tool: bool) -> dict:
     payload = {
         "model": MODEL,
-        "messages": [
-            {"role": "system", "content": (
-                "只依据提供的项目状态，用中文生成简短摘要，不要编造信息。"
-                "只返回 JSON 对象，不附带说明或 Markdown。"
-                "必须且仅包含 progress、blockers、next_steps 三个字段；"
-                "每个值是字符串数组，每项必须是非空字符串，没有对应信息时用空数组 []。"
-                "progress 包含已完成和进行中的进展，blockers 包含阻塞项及风险，"
-                "next_steps 包含下一步行动。"
-                '格式示例：{"progress":["接口已完成"],"blockers":[],"next_steps":["完成联调"]}'
-            )},
-            {"role": "user", "content": PROJECT_STATUS},
-        ],
+        "messages": messages,
         "thinking": {"type": "disabled"},
-        "response_format": {"type": "json_object"},
         "max_tokens": MAX_TOKENS,
         "stream": False,
     }
+    if with_tool:
+        payload["tools"] = [GET_PROJECT_TOOL]
+        payload["tool_choice"] = {"type": "function", "function": {"name": "get_project"}}
+    else:
+        # The second request can only produce the final JSON, not another tool call.
+        payload["response_format"] = {"type": "json_object"}
     request = Request(
         API_URL,
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
@@ -65,6 +90,81 @@ def request_summary(api_key: str) -> dict:
     )
     with urlopen(request, timeout=30) as response:
         return json.load(response)
+
+
+def inspect_response(response: dict, stage: str) -> tuple[dict, str, list[int]]:
+    """Record usage before interpreting the model's requested action."""
+    try:
+        choice = response["choices"][0]
+        message = choice["message"]
+        reason = choice["finish_reason"]
+        counts = [response["usage"][name] for name in ("prompt_tokens", "completion_tokens", "total_tokens")]
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            raise ValueError
+        if not isinstance(reason, str) or any(type(count) is not int or count < 0 for count in counts):
+            raise ValueError
+    except (KeyError, IndexError, TypeError, ValueError):
+        raise SummaryError("响应格式异常：缺少有效消息、结束原因或 token 用量。") from None
+    print(f"{stage} Token 用量：输入={counts[0]}，输出={counts[1]}，总计={counts[2]}")
+    print(f"结束原因：{reason}；输出上限：{MAX_TOKENS} tokens")
+    return message, reason, counts
+
+
+def validate_tool_call(message: dict, reason: str) -> dict:
+    if reason == "length":
+        raise SummaryError("工具调用达到 token 上限，可能被截断；不执行工具。")
+    if reason != "tool_calls":
+        raise SummaryError("模型未正常提出工具调用；不执行工具。")
+    calls = message.get("tool_calls")
+    if not isinstance(calls, list) or len(calls) != 1:
+        raise SummaryError("必须恰好提出一次工具调用；不执行工具。")
+    call = calls[0]
+    if not isinstance(call, dict) or call.get("type") != "function":
+        raise SummaryError("工具调用类型必须为 function。")
+    call_id = call.get("id")
+    if not isinstance(call_id, str) or not call_id.strip():
+        raise SummaryError("工具调用缺少有效 ID。")
+    function = call.get("function")
+    if not isinstance(function, dict) or function.get("name") != "get_project":
+        raise SummaryError("只允许调用 get_project。")
+    arguments = function.get("arguments")
+    if not isinstance(arguments, str):
+        raise SummaryError("工具参数必须是 JSON 字符串。")
+    try:
+        params = json.loads(arguments)
+    except json.JSONDecodeError:
+        raise SummaryError("工具参数不是有效 JSON。") from None
+    if not isinstance(params, dict) or set(params) != {"project_id"}:
+        raise SummaryError("工具参数必须且仅包含 project_id。")
+    if not isinstance(params["project_id"], str) or not params["project_id"].strip():
+        raise SummaryError("project_id 必须是非空字符串。")
+    # Normalize only protocol fields; never dynamically resolve a model-supplied name.
+    return {"id": call_id, "type": "function", "function": {
+        "name": "get_project", "arguments": arguments,
+    }}
+
+
+def run_project_summary(api_key: str) -> None:
+    messages = [
+        {"role": "system", "content": SUMMARY_PROMPT + "先调用 get_project 查询项目，再依据工具结果生成摘要。"},
+        {"role": "user", "content": "请查询项目 ID 为 xingqiao 的虚构项目，并总结项目状态。"},
+    ]
+    first = request_completion(api_key, messages, with_tool=True)
+    message, reason, first_counts = inspect_response(first, "工具调用请求")
+    call = validate_tool_call(message, reason)
+    params = json.loads(call["function"]["arguments"])
+    print(f"模型提出工具调用：get_project；ID={call['id']}；参数={json.dumps(params, ensure_ascii=False)}")
+    result = get_project(params["project_id"])
+    print("本地只读 get_project 执行成功。")
+    # Preserve the assistant call and bind its result using the same call ID.
+    messages.append({"role": "assistant", "content": message.get("content"), "tool_calls": [call]})
+    messages.append({"role": "tool", "tool_call_id": call["id"],
+                     "content": json.dumps(result, ensure_ascii=False)})
+    second = request_completion(api_key, messages, with_tool=False)
+    final_message, final_reason, second_counts = inspect_response(second, "摘要请求")
+    totals = [a + b for a, b in zip(first_counts, second_counts)]
+    print(f"两次请求 Token 合计：输入={totals[0]}，输出={totals[1]}，总计={totals[2]}")
+    display_summary(final_message, final_reason)
 
 
 def parse_summary(content: str) -> dict[str, list[str]]:
@@ -89,24 +189,20 @@ def parse_summary(content: str) -> dict[str, list[str]]:
 
 
 def display_response(response: dict) -> None:
-    try:
-        choice = response["choices"][0]
-        content = choice["message"]["content"]
-        reason = choice["finish_reason"]
-        usage = response["usage"]
-        counts = [usage[name] for name in ("prompt_tokens", "completion_tokens", "total_tokens")]
-        if not isinstance(content, str) or not content.strip():
-            raise ValueError
-        if not isinstance(reason, str) or any(type(count) is not int or count < 0 for count in counts):
-            raise ValueError
-    except (KeyError, IndexError, TypeError, ValueError):
-        raise SummaryError("响应格式异常：缺少有效摘要、结束原因或 token 用量。") from None
-    print(f"Token 用量：输入={counts[0]}，输出={counts[1]}，总计={counts[2]}")
-    print(f"结束原因：{reason}；输出上限：{MAX_TOKENS} tokens")
+    message, reason, _ = inspect_response(response, "摘要请求")
+    display_summary(message, reason)
+
+
+def display_summary(message: dict, reason: str) -> None:
     if reason == "length":
         raise SummaryError("摘要达到 token 上限，可能被截断；不作为有效摘要使用。")
-    elif reason != "stop":
+    if reason != "stop":
         raise SummaryError("生成未正常结束；请检查结束原因。")
+    if message.get("tool_calls"):
+        raise SummaryError("摘要阶段不允许再次调用工具。")
+    content = message.get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise SummaryError("响应缺少有效摘要。")
     summary = parse_summary(content)
     print("结构化摘要：")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
@@ -118,7 +214,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         api_key = read_api_key(args.key_file)
-        display_response(request_summary(api_key))
+        run_project_summary(api_key)
     except HTTPError as error:
         hints = {400: "请求参数无效", 401: "认证失败", 402: "余额不足", 422: "请求参数无法处理", 429: "请求限流", 500: "服务内部错误", 503: "服务繁忙"}
         print(f"错误：HTTP {error.code}，{hints.get(error.code, 'API 请求失败')}；未自动重试。", file=sys.stderr)

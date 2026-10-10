@@ -101,8 +101,19 @@ toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --key-file /Users/irons
 ```
 
 脚本使用 Python 标准库向 `/chat/completions` 发送 JSON：`system` 消息约束摘要，`user` 消息提供虚构项目状态；认证仅通过 Bearer 请求头传递。
-关闭思考模式，非流式读取 `choices[0].message.content`，显示 `usage` 和 `finish_reason`。`max_tokens=200` 是生成 token 上限；提示词另要求不超过 120 字，但字数未做程序级校验。
-网络超时设置为 30 秒，无自动重试。缺少、空或无法读取密钥时联网前退出；HTTP、网络和响应格式异常返回退出码 1，不打印密钥或原始错误响应。`length` 会提示可能截断。
+关闭思考模式，使用 `response_format={"type":"json_object"}`；提示词要求 JSON 并给出字段示例。非流式读取 `choices[0].message.content`，显示 `usage` 和 `finish_reason`。`max_tokens=400` 为生成 token 上限。
+API 响应解析后，还要对 content 中的摘要调用 json.loads，再校验必填字段和类型。
+摘要必须且仅含 progress、blockers、next_steps；值必须为字符串数组，可为 []，元素不可是空白字符串。缺字段不自动补 []。
+网络超时设置为 30 秒，无自动重试。缺少、空或无法读取密钥时联网前退出；HTTP、网络和响应格式异常返回退出码 1，不打印密钥或原始错误响应。`length` 或其他非 stop 结束原因直接失败，不作为有效摘要展示。
+
+离线验证（不读取密钥、不调用模型）：
+
+```sh
+toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
+```
+
+2026-10-10：9 项测试通过；真实结构化调用输入 215、输出 67、总计 282 tokens，stop 正常结束。
+格式校验不验证事实：即使 blockers=[] 合法，也仍需与原文对照，判断是否漏掉阻塞项。
 缺少密钥的验证命令（预期退出码 1）：
 
 ```sh

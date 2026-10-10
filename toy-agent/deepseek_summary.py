@@ -11,7 +11,8 @@ from urllib.request import Request, urlopen
 
 API_URL = "https://api.deepseek.com/chat/completions"
 MODEL = "deepseek-flash"
-MAX_TOKENS = 200
+MAX_TOKENS = 400
+SUMMARY_FIELDS = ("progress", "blockers", "next_steps")
 PROJECT_STATUS = """以下是虚构项目“星桥”的状态：
 已完成：登录接口和项目列表接口已实现，12 个单元测试通过。
 进行中：项目详情页面正在联调。
@@ -40,10 +41,19 @@ def request_summary(api_key: str) -> dict:
     payload = {
         "model": MODEL,
         "messages": [
-            {"role": "system", "content": "只依据提供的项目状态，用中文生成不超过120字的摘要，涵盖进展、风险和下一步。不要编造信息。"},
+            {"role": "system", "content": (
+                "只依据提供的项目状态，用中文生成简短摘要，不要编造信息。"
+                "只返回 JSON 对象，不附带说明或 Markdown。"
+                "必须且仅包含 progress、blockers、next_steps 三个字段；"
+                "每个值是字符串数组，每项必须是非空字符串，没有对应信息时用空数组 []。"
+                "progress 包含已完成和进行中的进展，blockers 包含阻塞项及风险，"
+                "next_steps 包含下一步行动。"
+                '格式示例：{"progress":["接口已完成"],"blockers":[],"next_steps":["完成联调"]}'
+            )},
             {"role": "user", "content": PROJECT_STATUS},
         ],
         "thinking": {"type": "disabled"},
+        "response_format": {"type": "json_object"},
         "max_tokens": MAX_TOKENS,
         "stream": False,
     }
@@ -55,6 +65,27 @@ def request_summary(api_key: str) -> dict:
     )
     with urlopen(request, timeout=30) as response:
         return json.load(response)
+
+
+def parse_summary(content: str) -> dict[str, list[str]]:
+    """Validate structure only; factual correctness requires separate evaluation."""
+    try:
+        summary = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        raise SummaryError("摘要不是有效 JSON。") from None
+    if not isinstance(summary, dict):
+        raise SummaryError("摘要必须是 JSON 对象。")
+    for field in SUMMARY_FIELDS:
+        if field not in summary:
+            raise SummaryError(f"摘要缺少必填字段：{field}。")
+        values = summary[field]
+        if not isinstance(values, list):
+            raise SummaryError(f"摘要字段 {field} 必须是字符串数组，允许空数组 []。")
+        if any(not isinstance(value, str) or not value.strip() for value in values):
+            raise SummaryError(f"摘要字段 {field} 的每个元素必须是非空字符串。")
+    if set(summary) != set(SUMMARY_FIELDS):
+        raise SummaryError("摘要包含约定之外的字段。")
+    return summary
 
 
 def display_response(response: dict) -> None:
@@ -70,13 +101,15 @@ def display_response(response: dict) -> None:
             raise ValueError
     except (KeyError, IndexError, TypeError, ValueError):
         raise SummaryError("响应格式异常：缺少有效摘要、结束原因或 token 用量。") from None
-    print(f"摘要：\n{content}")
     print(f"Token 用量：输入={counts[0]}，输出={counts[1]}，总计={counts[2]}")
     print(f"结束原因：{reason}；输出上限：{MAX_TOKENS} tokens")
     if reason == "length":
-        print("提示：摘要达到 token 上限，可能被截断。", file=sys.stderr)
+        raise SummaryError("摘要达到 token 上限，可能被截断；不作为有效摘要使用。")
     elif reason != "stop":
         raise SummaryError("生成未正常结束；请检查结束原因。")
+    summary = parse_summary(content)
+    print("结构化摘要：")
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
 
 
 def main() -> int:

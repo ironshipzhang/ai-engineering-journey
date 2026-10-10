@@ -1,0 +1,251 @@
+{
+  "model": "deepseek-flash",
+  "max_tokens": 400,
+  "prompt": "只依据提供的项目状态，用中文生成简短摘要，不要编造信息。只返回 JSON 对象，不附带说明或 Markdown。必须且仅包含 progress、blockers、next_steps 三个字段；每个值是字符串数组，每项必须是非空字符串，没有对应信息时用空数组 []。progress 包含已完成和进行中的进展，blockers 包含阻塞项及风险，next_steps 包含下一步行动。格式示例：{\"progress\":[\"接口已完成\"],\"blockers\":[],\"next_steps\":[\"完成联调\"]}",
+  "scope": "summary_only",
+  "cases": [
+    {
+      "id": "active_blocker",
+      "status": "虚构项目星桥：登录和项目列表接口已完成，12 个单元测试通过。项目详情页面正在联调。测试环境数据库迁移失败，小林正在排查。下一步修复迁移后完成联调，计划周五演示，存在延期风险。",
+      "required_facts": {
+        "progress": [
+          "登录与列表接口完成、12 个测试通过",
+          "详情页面仍在联调"
+        ],
+        "blockers": [
+          "数据库迁移失败尚未解除",
+          "演示存在延期风险"
+        ],
+        "next_steps": [
+          "修复迁移后完成联调",
+          "周五演示是计划"
+        ]
+      },
+      "unsupported_claims": [
+        "迁移已修复",
+        "详情联调已完成",
+        "演示必定按时完成"
+      ],
+      "summary": {
+        "progress": [
+          "登录接口已完成",
+          "项目列表接口已完成",
+          "12 个单元测试通过",
+          "项目详情页面正在联调"
+        ],
+        "blockers": [
+          "测试环境数据库迁移失败",
+          "小林正在排查",
+          "计划周五演示，存在延期风险"
+        ],
+        "next_steps": [
+          "修复迁移后完成联调"
+        ]
+      },
+      "usage": [
+        198,
+        64,
+        262
+      ],
+      "finish_reason": "stop",
+      "error": null,
+      "factual_review": "pending"
+    },
+    {
+      "id": "multiple_blockers",
+      "status": "虚构项目云帆：订单接口开发完成。验收测试尚未开始：测试账号权限未开通；支付沙箱回调持续超时。这两个阻塞都未解除。下一步申请账号权限并排查支付回调超时。尚未提供上线日期或负责人。",
+      "required_facts": {
+        "progress": [
+          "订单接口完成"
+        ],
+        "blockers": [
+          "测试账号权限未开通",
+          "支付沙箱回调超时"
+        ],
+        "next_steps": [
+          "申请权限",
+          "排查回调超时"
+        ]
+      },
+      "unsupported_claims": [
+        "验收已完成",
+        "只有一个阻塞",
+        "具体上线日期或负责人"
+      ],
+      "summary": {
+        "progress": [
+          "订单接口开发完成"
+        ],
+        "blockers": [
+          "验收测试尚未开始：测试账号权限未开通",
+          "支付沙箱回调持续超时"
+        ],
+        "next_steps": [
+          "申请账号权限",
+          "排查支付回调超时"
+        ]
+      },
+      "usage": [
+        199,
+        50,
+        249
+      ],
+      "finish_reason": "stop",
+      "error": null,
+      "factual_review": "pending"
+    },
+    {
+      "id": "explicit_no_blockers",
+      "status": "虚构项目青禾：搜索接口和页面联调均已完成，验收通过。当前明确没有阻塞项或已知延期风险。下一步整理使用文档。没有提供上线时间。",
+      "required_facts": {
+        "progress": [
+          "搜索接口和页面联调完成、验收通过"
+        ],
+        "blockers": [],
+        "next_steps": [
+          "整理使用文档"
+        ]
+      },
+      "unsupported_claims": [
+        "凭空添加阻塞或延期风险",
+        "已上线或具体上线时间"
+      ],
+      "summary": {
+        "progress": [
+          "搜索接口已完成",
+          "页面联调已完成",
+          "项目验收通过"
+        ],
+        "blockers": [],
+        "next_steps": [
+          "整理使用文档"
+        ]
+      },
+      "usage": [
+        183,
+        33,
+        216
+      ],
+      "finish_reason": "stop",
+      "error": null,
+      "factual_review": "pending"
+    },
+    {
+      "id": "missing_information",
+      "status": "虚构项目远山：原型设计已完成。下一步安排需求评审。记录没有提供阻塞项、风险、负责人或评审日期的信息；这不代表已确认没有阻塞。",
+      "required_facts": {
+        "progress": [
+          "原型设计完成"
+        ],
+        "blockers": [],
+        "next_steps": [
+          "安排需求评审"
+        ]
+      },
+      "unsupported_claims": [
+        "明确断言无阻塞或无风险",
+        "虚构负责人或评审日期",
+        "需求评审已完成"
+      ],
+      "summary": {
+        "progress": [
+          "原型设计已完成"
+        ],
+        "blockers": [],
+        "next_steps": [
+          "安排需求评审"
+        ]
+      },
+      "usage": [
+        182,
+        24,
+        206
+      ],
+      "finish_reason": "stop",
+      "error": null,
+      "factual_review": "pending"
+    },
+    {
+      "id": "resolved_blocker",
+      "status": "虚构项目溪桥：昨天测试环境数据库迁移失败；今天已修复并验证通过，该阻塞已解除。页面联调尚在进行。目前明确没有其他阻塞项或已知风险。下一步完成页面联调。",
+      "required_facts": {
+        "progress": [
+          "迁移已修复并验证通过",
+          "页面联调仍在进行"
+        ],
+        "blockers": [],
+        "next_steps": [
+          "完成页面联调"
+        ]
+      },
+      "unsupported_claims": [
+        "把已解除的迁移失败列为当前阻塞",
+        "联调已经完成",
+        "新增延期风险"
+      ],
+      "summary": {
+        "progress": [
+          "测试环境数据库迁移失败已修复并验证通过",
+          "页面联调尚在进行"
+        ],
+        "blockers": [],
+        "next_steps": [
+          "完成页面联调"
+        ]
+      },
+      "usage": [
+        192,
+        38,
+        230
+      ],
+      "finish_reason": "stop",
+      "error": null,
+      "factual_review": "pending"
+    },
+    {
+      "id": "conditional_plan",
+      "status": "虚构项目晨雾：报表查询接口已完成。安全评审尚未通过，发布被阻塞。仅在评审通过后，才计划下周二发布；日期尚未承诺。负责人和通过评审的时间未提供。下一步提交安全评审材料。",
+      "required_facts": {
+        "progress": [
+          "报表查询接口完成"
+        ],
+        "blockers": [
+          "安全评审未通过导致发布阻塞"
+        ],
+        "next_steps": [
+          "提交安全评审材料",
+          "下周二发布是以评审通过为条件的计划"
+        ]
+      },
+      "unsupported_claims": [
+        "安全评审已通过",
+        "无条件承诺下周二发布",
+        "虚构负责人或评审完成时间"
+      ],
+      "summary": {
+        "progress": [
+          "报表查询接口已完成"
+        ],
+        "blockers": [
+          "安全评审尚未通过，发布被阻塞"
+        ],
+        "next_steps": [
+          "提交安全评审材料"
+        ]
+      },
+      "usage": [
+        194,
+        35,
+        229
+      ],
+      "finish_reason": "stop",
+      "error": null,
+      "factual_review": "pending"
+    }
+  ],
+  "usage_totals": [
+    1148,
+    244,
+    1392
+  ]
+}

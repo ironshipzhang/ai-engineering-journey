@@ -163,3 +163,9 @@ toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --key-file /private/tmp
 - 按此前查验的全部输入未命中峰值费率估算费用上限约 $0.0004644；实际扣费以账单为准，未查询余额。
 - 未验证：真实模型重复调用、直接回答、非法调用、超限或 HTTP 失败场景。这些控制路径以离线模拟验证，不为异常场景额外发送付费请求；事实质量仍只人工检查一个虚构项目。
 - 接口查验来源：https://api-docs.deepseek.com/api/create-chat-completion/ 。
+
+## 小型事实质量评估
+
+新增独立评估入口 `toy-agent/evaluate_summary.py`，无新依赖；使用仓库外密钥，以 6 次模型请求采集摘要并保存新 JSON 文件。具体命令、首轮用量与复核标准见 [EVALUATION.md](EVALUATION.md)。原 Agent Loop 的运行命令保持不变。
+
+当前离线验证共 30 项全部通过。真实评估 6 条结构全部通过、共 1392 tokens；事实质量由单独初评记录，不能由测试通过或脚本退出码判断。

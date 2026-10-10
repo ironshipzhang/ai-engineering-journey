@@ -69,7 +69,7 @@ def get_project(project_id: str) -> dict[str, str]:
     return {"project_id": project_id, "name": "星桥", "status": PROJECT_STATUS}
 
 
-def request_completion(api_key: str, messages: list[dict]) -> dict:
+def request_completion(api_key: str, messages: list[dict], *, with_tools: bool = True) -> dict:
     payload = {
         "model": MODEL,
         "messages": messages,
@@ -78,7 +78,8 @@ def request_completion(api_key: str, messages: list[dict]) -> dict:
         "stream": False,
     }
     # With tools present, omitting tool_choice defaults to auto.
-    payload["tools"] = [GET_PROJECT_TOOL]
+    if with_tools:
+        payload["tools"] = [GET_PROJECT_TOOL]
     payload["response_format"] = {"type": "json_object"}
     request = Request(
         API_URL,
@@ -211,7 +212,7 @@ def display_response(response: dict) -> None:
     display_summary(message, reason)
 
 
-def display_summary(message: dict, reason: str) -> None:
+def display_summary(message: dict, reason: str) -> dict[str, list[str]]:
     if reason == "length":
         raise SummaryError("摘要达到 token 上限，可能被截断；不作为有效摘要使用。")
     if reason != "stop":
@@ -224,6 +225,7 @@ def display_summary(message: dict, reason: str) -> None:
     summary = parse_summary(content)
     print("结构化摘要：")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
+    return summary
 
 
 def main() -> int:

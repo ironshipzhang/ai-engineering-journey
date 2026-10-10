@@ -34,3 +34,9 @@ stop 响应不能携带工具调用；没有成功项目数据时，即使摘要
 非法或多个调用、工具失败、length 截断、非正常结束和超限均立即终止，无自动重试。每轮用量及累计值在校验调用与摘要前展示，后续失败仍保留已确认用量；无有效响应的请求用量无法本地确认。每次网络操作为 30 秒超时，没有流程总时限。main 将已处理的错误转为退出码 1，不输出密钥或原始错误响应。
 
 当前没有 MCP、RAG、写操作、跨任务缓存或持久化对话。测试与真实调用记录见 [SETUP.md](SETUP.md)，重要取舍见 [DECISIONS.md](DECISIONS.md)。
+
+## 独立事实评估入口
+
+`evaluate_summary.py` 读取 `evals/project_summary_cases.json`，逐条将状态和共享 SUMMARY_PROMPT 发给模型。request_completion 的 with_tools=False 仅用于这条评估路径；Loop 默认仍提供工具。每条样例一次模型请求，不进入 Loop。
+
+有效摘要由共享 display_summary / parse_summary 校验后返回并写入新 JSON 文件，与原始状态、检查点、用量、错误和待评审标记一起保存。采集脚本不做语义评分，Codex 初评和待用户复核说明见 [EVALUATION.md](EVALUATION.md)。

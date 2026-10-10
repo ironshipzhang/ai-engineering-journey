@@ -100,17 +100,18 @@ https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/g
 toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --key-file /Users/ironshipzhang/Documents/secret/deepseek.txt
 ```
 
-脚本现在固定执行一次只读工具调用和后续摘要，共两次 `/chat/completions` 请求，仍使用 Python 标准库和同一运行命令。
+脚本现在使用最多 5 次模型请求的简单 Agent Loop，CLI 命令和标准库依赖保持不变。
 
-1. `request_completion(..., with_tool=True)`：发送摘要规则、查询 xingqiao 的用户意图和 get_project 工具定义，指定 tool_choice；不把项目状态放入第一次请求。
-2. `inspect_response` 记录首次用量和结束原因；`validate_tool_call` 校验调用数、类型、ID、工具名和参数结构。程序显式调用 `get_project` 查询本地虚构数据。未知项目或非法调用直接失败，不执行第二次请求。
-3. `run_project_summary` 追加 assistant 调用消息，以及带相同 tool_call_id 的 tool 结果。结果通过 JSON 字符串作为 content 返回。
-4. `request_completion(..., with_tool=False)` 不再提供工具，启用 response_format={"type":"json_object"}；第二次用量展示后计算两次合计，`display_summary` 调用原有 `parse_summary` 校验。
+1. 每轮 request_completion 发送当前 messages、get_project 工具定义与 response_format={"type":"json_object"}，省略 tool_choice，由模型自主选择工具调用或最终回答。
+2. inspect_response 记录每轮用量和结束原因，run_project_summary 更新累计用量。
+3. tool_calls 分支由 validate_tool_call 校验工具名、类型、ID、调用数和参数；每轮只允许一个调用。首次成功查询存入任务内缓存，相同 project_id 后续复用，仍追加 assistant 与绑定当前 tool_call_id 的 tool 结果。
+4. stop 分支必须已有成功项目数据，再调用原有 parse_summary 校验摘要。未查询数据的直接回答立即失败，不自动补发查询。
+5. 最多 5 次模型请求；第五次若仍要求工具调用则终止，不执行该轮工具、不发送第六次请求；第五次有效最终摘要仍成功。
 
 摘要必须且仅含 progress、blockers、next_steps；值必须为字符串数组，可为 []，元素不可是空白字符串。缺字段不自动补 []。
-每次请求关闭思考、非流式、max_tokens=400、30 秒网络超时，无自动重试。整个流程不设置额外的总时限。
-缺少、空或无法读取密钥时联网前退出；HTTP、网络和响应格式异常返回退出码 1，不打印密钥或原始错误响应。
-首次须 tool_calls 正常结束，后续须 stop；length 截断直接失败。第二次失败时首次已展示的用量仍可用于排查，失败请求的实际计费情况须查平台账单。
+每次请求关闭思考、非流式、max_tokens=400、30 秒网络操作超时，无自动重试。整个流程不设置额外的总时限。
+缺少、空或无法读取密钥时联网前退出；非法调用、工具失败、超限、HTTP、网络和响应格式异常返回退出码 1，不打印密钥或原始错误响应。
+工具调用须 tool_calls、最终摘要须 stop 正常结束；length 截断或其他结束原因直接失败。失败前已确认的每轮和累计用量仍在终端显示，未取得有效响应的请求实际计费须查平台账单。
 
 离线验证（不读取密钥、不调用模型）：
 
@@ -134,7 +135,7 @@ toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --key-file /private/tmp
 价格与能力：https://api-docs.deepseek.com/quick_start/pricing/
 价格查验日期：2026-10-02。具体费率以实际调用时官方页面为准。
 
-## 一次只读工具调用验证：2026-10-10
+## 历史验证：固定一次只读工具调用（2026-10-10）
 
 - 16 项离线测试通过（原摘要校验 9 项 + 工具流程 7 项），不读取密钥、不联网。
 - 真实执行成功，退出码 0：get_project 参数为 {"project_id":"xingqiao"}，本地只读函数执行一次。
@@ -152,3 +153,13 @@ toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --key-file /private/tmp
 - 用户提供的本地终端输出：首次输入 448、输出 36、总计 484 tokens，tool_calls；后续输入 335、输出 67、总计 402 tokens，stop；合计输入 783、输出 103、总计 886 tokens。该记录来自用户实际运行输出，不是本次离线测试生成。
 - 对照代码内虚构数据，用户运行的摘要包含完成接口、12 个单元测试、详情联调、迁移失败、小林排查、演示延期风险和下一步计划。虚构数据中的“12 个单元测试”是项目状态文本，不是本仓库当前的 16 项测试数量。
 - 未验证：真实 API 的非法调用、超时和 HTTP 失败场景；未建立事实质量评估集。当前超时测试通过模拟异常验证首次用量保留，不证明真实网络会在整个流程 30 秒内结束。
+
+## 当前 Agent Loop 验证：2026-10-10
+
+- 24 项离线测试通过（摘要校验 9 项、工具与 Loop 15 项），覆盖正常结束、重复参数结果复用与当前 ID 绑定、任务间缓存隔离、失败不重试、无数据直接回答拒绝、非法与多个调用、截断、第五轮正常结束、超限无第六次请求、累计用量和网络限制。
+- 官方接口列出 tools 与 json_object 参数，工具默认 auto；文档未单独明确保证组合行为，本次用一次真实流程确认当前 deepseek-flash 非思考模式可同时使用。
+- 真实运行退出码 0：第 1 轮输入 481、输出 41、总计 522 tokens，tool_calls；第 2 轮输入 635、输出 67、总计 702，stop；累计输入 1116、输出 108、总计 1224 tokens。
+- 人工核对摘要：接口完成、12 个单元测试、详情联调、迁移失败、小林排查、延期风险及下一步计划均保留。文本中的“12 个单元测试”来自虚构数据，非本仓库测试数量。
+- 按此前查验的全部输入未命中峰值费率估算费用上限约 $0.0004644；实际扣费以账单为准，未查询余额。
+- 未验证：真实模型重复调用、直接回答、非法调用、超限或 HTTP 失败场景。这些控制路径以离线模拟验证，不为异常场景额外发送付费请求；事实质量仍只人工检查一个虚构项目。
+- 接口查验来源：https://api-docs.deepseek.com/api/create-chat-completion/ 。

@@ -1,4 +1,4 @@
-"""Run one read-only tool call and summarize its result in two bounded requests."""
+"""Run a bounded read-only project Agent Loop using the Python standard library."""
 
 import argparse
 import json
@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 API_URL = "https://api.deepseek.com/chat/completions"
 MODEL = "deepseek-flash"
 MAX_TOKENS = 400
+MAX_REQUESTS = 5
 SUMMARY_FIELDS = ("progress", "blockers", "next_steps")
 PROJECT_STATUS = """以下是虚构项目“星桥”的状态：
 已完成：登录接口和项目列表接口已实现，12 个单元测试通过。
@@ -64,11 +65,11 @@ GET_PROJECT_TOOL = {
 def get_project(project_id: str) -> dict[str, str]:
     """Read fixed fictional data; no database or write operation is involved."""
     if project_id != "xingqiao":
-        raise SummaryError("项目不存在；未发送后续摘要请求。")
+        raise SummaryError("项目不存在；任务结束，不自动重试。")
     return {"project_id": project_id, "name": "星桥", "status": PROJECT_STATUS}
 
 
-def request_completion(api_key: str, messages: list[dict], *, with_tool: bool) -> dict:
+def request_completion(api_key: str, messages: list[dict]) -> dict:
     payload = {
         "model": MODEL,
         "messages": messages,
@@ -76,12 +77,9 @@ def request_completion(api_key: str, messages: list[dict], *, with_tool: bool) -
         "max_tokens": MAX_TOKENS,
         "stream": False,
     }
-    if with_tool:
-        payload["tools"] = [GET_PROJECT_TOOL]
-        payload["tool_choice"] = {"type": "function", "function": {"name": "get_project"}}
-    else:
-        # The second request can only produce the final JSON, not another tool call.
-        payload["response_format"] = {"type": "json_object"}
+    # With tools present, omitting tool_choice defaults to auto.
+    payload["tools"] = [GET_PROJECT_TOOL]
+    payload["response_format"] = {"type": "json_object"}
     request = Request(
         API_URL,
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
@@ -146,25 +144,45 @@ def validate_tool_call(message: dict, reason: str) -> dict:
 
 def run_project_summary(api_key: str) -> None:
     messages = [
-        {"role": "system", "content": SUMMARY_PROMPT + "先调用 get_project 查询项目，再依据工具结果生成摘要。"},
+        {"role": "system", "content": SUMMARY_PROMPT + (
+            "需要项目数据时使用 get_project，每轮最多调用一次。"
+            "只有成功取得项目数据后才能生成最终摘要；已有数据时避免重复查询。"
+        )},
         {"role": "user", "content": "请查询项目 ID 为 xingqiao 的虚构项目，并总结项目状态。"},
     ]
-    first = request_completion(api_key, messages, with_tool=True)
-    message, reason, first_counts = inspect_response(first, "工具调用请求")
-    call = validate_tool_call(message, reason)
-    params = json.loads(call["function"]["arguments"])
-    print(f"模型提出工具调用：get_project；ID={call['id']}；参数={json.dumps(params, ensure_ascii=False)}")
-    result = get_project(params["project_id"])
-    print("本地只读 get_project 执行成功。")
-    # Preserve the assistant call and bind its result using the same call ID.
-    messages.append({"role": "assistant", "content": message.get("content"), "tool_calls": [call]})
-    messages.append({"role": "tool", "tool_call_id": call["id"],
-                     "content": json.dumps(result, ensure_ascii=False)})
-    second = request_completion(api_key, messages, with_tool=False)
-    final_message, final_reason, second_counts = inspect_response(second, "摘要请求")
-    totals = [a + b for a, b in zip(first_counts, second_counts)]
-    print(f"两次请求 Token 合计：输入={totals[0]}，输出={totals[1]}，总计={totals[2]}")
-    display_summary(final_message, final_reason)
+    # Task-local success cache: JSON formatting and call IDs are not cache keys.
+    successful_results: dict[str, dict[str, str]] = {}
+    totals = [0, 0, 0]
+    for request_number in range(1, MAX_REQUESTS + 1):
+        response = request_completion(api_key, messages)
+        message, reason, counts = inspect_response(response, f"第 {request_number} 轮")
+        totals = [a + b for a, b in zip(totals, counts)]
+        print(f"累计 Token 用量：输入={totals[0]}，输出={totals[1]}，总计={totals[2]}")
+        if reason == "stop":
+            if message.get("tool_calls"):
+                raise SummaryError("结束原因与工具调用不一致；任务结束。")
+            if not successful_results:
+                raise SummaryError("尚未成功取得项目数据；不接受最终摘要。")
+            display_summary(message, reason)
+            return
+        # Reject truncation, abnormal finish reasons and invalid calls before execution.
+        call = validate_tool_call(message, reason)
+        if request_number == MAX_REQUESTS:
+            raise SummaryError(f"已达到 {MAX_REQUESTS} 次模型请求上限，仍需工具调用；不执行工具，任务结束。")
+        params = json.loads(call["function"]["arguments"])
+        project_id = params["project_id"]
+        print(f"模型提出工具调用：get_project；ID={call['id']}；参数={json.dumps(params, ensure_ascii=False)}")
+        if project_id in successful_results:
+            result = successful_results[project_id]
+            print("复用本任务内成功的 get_project 结果。")
+        else:
+            # An exception exits the task before storing anything: failures are never cached.
+            result = get_project(project_id)
+            successful_results[project_id] = result
+            print("本地只读 get_project 执行成功。")
+        messages.append({"role": "assistant", "content": message.get("content"), "tool_calls": [call]})
+        messages.append({"role": "tool", "tool_call_id": call["id"],
+                         "content": json.dumps(result, ensure_ascii=False)})
 
 
 def parse_summary(content: str) -> dict[str, list[str]]:

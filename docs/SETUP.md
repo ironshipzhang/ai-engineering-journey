@@ -168,4 +168,18 @@ toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --key-file /private/tmp
 
 新增独立评估入口 `toy-agent/evaluate_summary.py`，无新依赖；使用仓库外密钥，以 6 次模型请求采集摘要并保存新 JSON 文件。具体命令、首轮用量与复核标准见 [EVALUATION.md](EVALUATION.md)。原 Agent Loop 的运行命令保持不变。
 
-当前离线验证共 30 项全部通过。真实评估 6 条结构全部通过、共 1392 tokens；事实质量由单独初评记录，不能由测试通过或脚本退出码判断。
+首次六条评估阶段的离线验证共 30 项全部通过。真实评估 6 条结构全部通过、共 1392 tokens；事实质量由单独初评记录，不能由测试通过或脚本退出码判断。
+
+## 指定评估集：2026-10-11
+
+Evaluate 新增可选 --cases 参数；省略时仍使用 toy-agent/evals/project_summary_cases.json 的原六条样例，无新依赖。31 项离线测试通过，运行 Loop 的命令不变。
+
+例如运行包含原六条与新增两条的组合集（会产生 8 次摘要请求费用，输出文件须不存在）：
+
+```sh
+toy-agent/.venv/bin/python toy-agent/evaluate_summary.py --key-file /Users/ironshipzhang/Documents/secret/deepseek.txt --cases toy-agent/evals/comparison_cases_20261011.json --output /private/tmp/project-summary-comparison-new.json
+```
+
+仅采集新增两条时，--cases 指向 toy-agent/evals/transfer_cases_20261011.json。脚本始终使用当前代码的共享 SUMMARY_PROMPT，没有历史提示词选择开关；本轮旧提示词的两条结果是在改词前采集，不能通过当前命令直接重现旧提示词。
+
+本轮 10 次真实请求共 3477 tokens；逐条对照、退步与限制见 [EVALUATION.md](EVALUATION.md)，本次不再继续调用。

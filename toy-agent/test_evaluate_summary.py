@@ -5,11 +5,12 @@ import io
 import json
 from pathlib import Path
 import tempfile
+import sys
 import unittest
 from unittest.mock import patch
 
 from deepseek_summary import SummaryError, request_completion
-from evaluate_summary import evaluate, load_cases
+from evaluate_summary import CASES_PATH, evaluate, load_cases, main
 
 
 def response(reason='stop', content='{"progress":[],"blockers":[],"next_steps":[]}'):
@@ -61,6 +62,25 @@ class EvaluationTests(unittest.TestCase):
                 path.write_text(json.dumps(bad), encoding='utf-8')
                 with self.assertRaises(SummaryError):
                     load_cases(path)
+
+    def test_cli_uses_default_or_explicit_cases_path(self):
+        for explicit in (False, True):
+            with self.subTest(explicit=explicit), tempfile.TemporaryDirectory() as folder:
+                output = Path(folder) / 'result.json'
+                selected = Path(folder) / 'custom.json' if explicit else CASES_PATH
+                argv = ['evaluate_summary.py', '--key-file', 'unused', '--output', str(output)]
+                if explicit:
+                    argv += ['--cases', str(selected)]
+                report = {'cases': [], 'usage_totals': [0, 0, 0]}
+                with patch.object(sys, 'argv', argv), \
+                     patch('evaluate_summary.load_cases', return_value=[]) as load, \
+                     patch('evaluate_summary.read_api_key', return_value='fake-key'), \
+                     patch('evaluate_summary.evaluate', return_value=report) as collect, \
+                     redirect_stdout(io.StringIO()):
+                    self.assertEqual(main(), 0)
+                load.assert_called_once_with(selected)
+                collect.assert_called_once_with('fake-key', [])
+                self.assertEqual(json.loads(output.read_text()), report)
 
     def test_summary_only_transport_keeps_limits_and_disables_tools(self):
         with patch('deepseek_summary.urlopen') as send:

@@ -94,24 +94,48 @@ https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/g
 
 选择 DeepSeek 官方 API，初期模型使用 deepseek-flash，月度预算目标不超过 10 USD。
 已于 2026-10-02 使用仓库外密钥完成一次真实调用，当前设备可以访问官方 API，认证和本次余额扣费条件满足；未查询账户余额或剩余额度。
-运行当前工具调用与摘要流程（密钥文件必须是单行纯文本，不要复制进仓库）：
+当前两个入口默认读取仓库根目录 config/local.toml，使用 Python 3.12 标准库 tomllib，无新依赖。首次配置时在项目根目录执行（已有配置时保留原文件）：
 
 ```sh
-toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --key-file /Users/ironshipzhang/Documents/secret/deepseek.txt
+umask 077
+mkdir -p config
+cp -n config.example.toml config/local.toml
+chmod 600 config/local.toml
 ```
 
-脚本现在使用最多 5 次模型请求的简单 Agent Loop，CLI 命令和标准库依赖保持不变。
+在本地编辑 config/local.toml，把 YOUR_API_KEY 换成真实密钥：
+
+```toml
+[model]
+api_key = "YOUR_API_KEY"
+```
+
+config/local.toml 是本地明文文件；/config/ 被 Git 忽略，config.example.toml 只含占位符，可纳入版本控制。忽略规则不会移除已跟踪文件，已有跟踪需单独处理。本次已从原仓库外密钥迁移成功，权限为 0600，原密钥文件保留，无需重复复制。
+
+运行当前工具调用与摘要流程（会联网）：
+
+```sh
+toy-agent/.venv/bin/python toy-agent/deepseek_summary.py
+```
+
+脚本使用最多 5 次模型请求的简单 Agent Loop。已移除 --key-file；可用 --config 指定其他 TOML 路径。默认路径按脚本位置定位仓库根目录，不依赖启动目录；显式相对路径按启动时工作目录解析。例如：
+
+```sh
+toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --config ./config/local.toml --output test-output/run-002.json
+```
+
+输出文件名必须尚未存在。evaluate_summary.py 同样支持 --config；不传时使用相同默认配置。
 
 1. 每轮 request_completion 发送当前 messages、get_project 工具定义与 response_format={"type":"json_object"}，省略 tool_choice，由模型自主选择工具调用或最终回答。
-2. inspect_response 记录每轮用量和结束原因，run_project_summary 更新累计用量。
+2. run_project_summary 返回结构化结果，记录每轮用量、结束原因和事件，并更新累计已知用量；CLI 由 display_run_result 展示。inspect_response 保留用于独立摘要评估。
 3. tool_calls 分支由 validate_tool_call 校验工具名、类型、ID、调用数和参数；每轮只允许一个调用。首次成功查询存入任务内缓存，相同 project_id 后续复用，仍追加 assistant 与绑定当前 tool_call_id 的 tool 结果。
 4. stop 分支必须已有成功项目数据，再调用原有 parse_summary 校验摘要。未查询数据的直接回答立即失败，不自动补发查询。
 5. 最多 5 次模型请求；第五次若仍要求工具调用则终止，不执行该轮工具、不发送第六次请求；第五次有效最终摘要仍成功。
 
 摘要必须且仅含 progress、blockers、next_steps；值必须为字符串数组，可为 []，元素不可是空白字符串。缺字段不自动补 []。
-每次请求关闭思考、非流式、max_tokens=400、30 秒网络操作超时，无自动重试。整个流程不设置额外的总时限。
-缺少、空或无法读取密钥时联网前退出；非法调用、工具失败、超限、HTTP、网络和响应格式异常返回退出码 1，不打印密钥或原始错误响应。
-工具调用须 tool_calls、最终摘要须 stop 正常结束；length 截断或其他结束原因直接失败。失败前已确认的每轮和累计用量仍在终端显示，未取得有效响应的请求实际计费须查平台账单。
+每次请求关闭思考、非流式、max_tokens=800、30 秒网络操作超时，无自动重试。整个流程不设置额外的总时限。
+配置不存在、无法读取、TOML 无效、缺少 model.api_key、类型错误、空值、含空白或仍为示例占位符时联网前退出；非法调用、工具失败、超限、HTTP、网络和响应格式异常返回退出码 1，不打印密钥或原始错误响应。
+工具调用须 tool_calls、最终摘要须 stop 正常结束；length 截断或其他结束原因直接失败。失败前已确认的每轮和累计用量保留于结果并在终端显示，未知轮次 usage=null、累计 complete=false，实际计费须查平台账单。
 
 离线验证（不读取密钥、不调用模型）：
 
@@ -121,10 +145,10 @@ toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
 
 历史记录（工具调用实现前）：2026-10-10，9 项测试通过；真实结构化调用输入 215、输出 67、总计 282 tokens，stop 正常结束。
 格式校验不验证事实：即使 blockers=[] 合法，也仍需与原文对照，判断是否漏掉阻塞项。
-缺少密钥的验证命令（预期退出码 1）：
+缺少配置的验证命令（预期退出码 1）：
 
 ```sh
-toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --key-file /private/tmp/nonexistent-deepseek-key-01a0fd07
+toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --config /private/tmp/nonexistent-agent-config.toml
 ```
 
 2026-10-02 首次真实调用：输入 99、输出 54、总计 153 tokens，结束原因 `stop`。按缓存全部未命中的峰值费率估算上限约 $0.0000945；实际费用以平台账单为准。
@@ -166,7 +190,7 @@ toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --key-file /private/tmp
 
 ## 小型事实质量评估
 
-新增独立评估入口 `toy-agent/evaluate_summary.py`，无新依赖；使用仓库外密钥，以 6 次模型请求采集摘要并保存新 JSON 文件。具体命令、首轮用量与复核标准见 [EVALUATION.md](EVALUATION.md)。原 Agent Loop 的运行命令保持不变。
+新增独立评估入口 `toy-agent/evaluate_summary.py`，无新依赖；使用本地 TOML 配置，以 6 次模型请求采集摘要并保存新 JSON 文件。具体命令、首轮用量与复核标准见 [EVALUATION.md](EVALUATION.md)。原 Agent Loop 的运行命令保持不变。
 
 首次六条评估阶段的离线验证共 30 项全部通过。真实评估 6 条结构全部通过、共 1392 tokens；事实质量由单独初评记录，不能由测试通过或脚本退出码判断。
 
@@ -177,9 +201,92 @@ Evaluate 新增可选 --cases 参数；省略时仍使用 toy-agent/evals/projec
 例如运行包含原六条与新增两条的组合集（会产生 8 次摘要请求费用，输出文件须不存在）：
 
 ```sh
-toy-agent/.venv/bin/python toy-agent/evaluate_summary.py --key-file /Users/ironshipzhang/Documents/secret/deepseek.txt --cases toy-agent/evals/comparison_cases_20261011.json --output /private/tmp/project-summary-comparison-new.json
+toy-agent/.venv/bin/python toy-agent/evaluate_summary.py --cases toy-agent/evals/comparison_cases_20261011.json --output /private/tmp/project-summary-comparison-new.json
 ```
 
 仅采集新增两条时，--cases 指向 toy-agent/evals/transfer_cases_20261011.json。脚本始终使用当前代码的共享 SUMMARY_PROMPT，没有历史提示词选择开关；本轮旧提示词的两条结果是在改词前采集，不能通过当前命令直接重现旧提示词。
 
 本轮 10 次真实请求共 3477 tokens；逐条对照、退步与限制见 [EVALUATION.md](EVALUATION.md)，本次不再继续调用。
+
+## 结构化运行结果与执行轨迹：2026-10-11
+
+默认命令无需密钥参数，使用本地 TOML 配置；成功退出 0，执行或结构校验失败退出 1。可选保存完整结果（以下命令会联网，本轮未执行）：
+
+```sh
+toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --output /private/tmp/toy-agent-run-new.json
+```
+
+--output 目标须不存在，父目录须存在且可写；程序在读取密钥和请求前独占创建，失败运行也保存 JSON。已有文件或无效路径会在请求前退出；写入、刷新或关闭失败同样退出 1。写入并非事务操作，异常时可能留下空文件或部分 JSON，需要自行检查，不自动覆盖。
+
+39 项离线测试全部通过，命令仍为上方 unittest discover；不读取真实密钥、不调用模型，不新增依赖。原有 31 项测试保留执行边界并适配返回契约，新增 8 项验证结果和 CLI 保存。提示词及历史评估数据未修改。
+
+以下为测试替身产生的完整示例（首轮工具成功，第二轮超时），不是真实模型输出或账单：
+
+```json
+{
+  "status": "failed",
+  "summary": null,
+  "error": {
+    "category": "network_error",
+    "message": "网络连接失败或超时；未自动重试。超时不代表服务端未处理请求。"
+  },
+  "model_requests": 2,
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 5,
+    "total_tokens": 15,
+    "complete": false
+  },
+  "tool_executions": 1,
+  "cache_hits": 0,
+  "trace": [
+    {
+      "event": "model_request",
+      "request_number": 1,
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 10,
+        "completion_tokens": 5,
+        "total_tokens": 15
+      }
+    },
+    {
+      "event": "tool_execution",
+      "request_number": 1,
+      "status": "succeeded",
+      "tool_name": "get_project",
+      "call_id": "call_test",
+      "parameters": {
+        "project_id": "xingqiao"
+      }
+    },
+    {
+      "event": "model_request",
+      "request_number": 2,
+      "finish_reason": null,
+      "usage": null
+    },
+    {
+      "event": "failure",
+      "request_number": 2,
+      "stage": "request",
+      "error": {
+        "category": "network_error",
+        "message": "网络连接失败或超时；未自动重试。超时不代表服务端未处理请求。"
+      }
+    }
+  ]
+}
+```
+
+model_requests 包含失败的第二次尝试；tool_executions=1 包含实际进入函数的调用，cache_hits=0。网络失败的用量未知，complete=false；已知总计 15 不能当作整次运行总费用。无请求的配置失败可为零累计、complete=true。
+
+trace 只保存请求、工具执行、缓存与失败的必要元数据，不保存密钥、请求头、原始错误响应、完整对话或内部推理；当前参数为虚构数据，后续真实参数需脱敏。succeeded 只表示执行及三字段结构校验成功，仍可能遗漏、编造或错字段；当前候选尚未通过 V2 内容质量验收。本轮真实网络行为与模型质量均未验证。
+
+## TOML 配置迁移验证：2026-10-11
+
+两个入口共用 read_config_api_key，移除 --key-file，增加 --config。45 项离线测试通过，包含默认路径独立于工作目录、显式绝对/相对路径、有效配置、缺失/权限/编码/语法/字段/类型/空值/占位符错误，以及两个入口配置失败不联网、不泄露内容。Loop 配置失败仍可保存 status=failed、configuration 事件和零请求结果；评估入口配置失败安全报错后退出，不创建评估输出。
+
+仅迁移阶段读取原真实密钥并写入本地明文配置，未显示密钥、未删除原文件；测试使用虚构密钥与临时配置，未调用模型。已检查 local.toml 被 /config/ 忽略且未被跟踪，权限 0600；示例仅包含 YOUR_API_KEY。任务 D 尚未开始。
+
+主会话复核：45 项离线测试全部通过；用户真实运行保存的 test-output/run-002.json 成功，两次请求、一次工具执行，累计 1582 tokens，用量完整且与分轮记录一致。正常配置读取及结果保存已真实验证，真实认证失败与异常配置仍仅离线验证。test-output/ 为本地运行产物，已被 Git 忽略，不影响 toy-agent/evals/ 历史评估记录。

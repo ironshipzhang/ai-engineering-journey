@@ -1,0 +1,3 @@
+# Copy to config/local.toml and replace the placeholder locally.
+[model]
+api_key = "YOUR_API_KEY"

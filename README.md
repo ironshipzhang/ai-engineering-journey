@@ -20,11 +20,13 @@
 
 Toy Agent 已实现有界只读 Agent Loop：模型通过 get_project 查询虚构项目，程序校验并执行工具调用，复用本任务内成功结果，最后校验三字段结构化摘要；最多 5 次模型请求。
 
-独立摘要评估已保存三轮输出与提示词迭代记录，31 项离线测试通过。主会话已按 V2 分别复核事实保留、字段归属和表达关联：当前候选八条关键事实均保留，但三条仍有字段问题，候选尚未通过质量验收。本阶段内容调优已结束，下一项任务冻结提示词并仅离线验证；评估只覆盖摘要环节，尚未验证完整 Loop 的多样例质量或多次生成稳定性。
+内容评估练习已结束：已完成样例构造、批量采集、版本比较及三维评审，历史输出与结论保留在 EVALUATION.md，不再作为当前调优待办。
 
-完整学习路线见 [TOY_AGENT_ROADMAP.md](docs/TOY_AGENT_ROADMAP.md)，阶段状态见 [Toy Agent 进度图](docs/toy-agent-progress.svg)。下一项已确定为完整 Loop 的结构化结果与执行轨迹记录，先用离线模拟验证；随后逐项理解 Tool Registry、小型 RAG、MCP、失败策略与端到端评估，最后完成 CLI 演示收尾。
+任务 C 已完成：Loop 返回结构化运行结果与执行轨迹，CLI 可展示或保存 JSON。39 项离线测试通过，正常真实运行与 --output 保存均已验证；异常路径通过离线模拟验证。
 
-新任务会话的实现范围与验收要求见 [结果与执行轨迹任务说明](docs/tasks/run-result-and-trace.md)。
+下一项是 D：多项目输入与 Tool Registry。完整路线见 [TOY_AGENT_ROADMAP.md](docs/TOY_AGENT_ROADMAP.md)，最新状态见 [进度图](docs/toy-agent-progress.svg)。随后逐项学习小型 RAG、MCP、失败策略与端到端评估，最后完成 CLI 演示收尾。
+
+任务 C 的已完成实现范围见 [结果与执行轨迹任务说明](docs/tasks/run-result-and-trace.md)。
 
 系统流程见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，评估记录与限制见 [docs/EVALUATION.md](docs/EVALUATION.md)，重要取舍见 [docs/DECISIONS.md](docs/DECISIONS.md)。
 
@@ -34,3 +36,5 @@ Toy Agent 已实现有界只读 Agent Loop：模型通过 get_project 查询虚�
 origin 为 git@github.com:ironshipzhang/ai-engineering-journey.git；SSH 认证与首次推送已完成，main 跟踪 origin/main。
 
 使用 VS Code 打开整个仓库目录，Python 解释器配置为 toy-agent/.venv。
+
+模型入口默认读取 `config/local.toml`，不再需要 `--key-file`；可用 `--config` 指定其他路径。首次使用将 [config.example.toml](config.example.toml) 复制到该位置并在本地填写密钥，权限设为 0600，已有配置不覆盖；步骤见 [SETUP.md](docs/SETUP.md)。本地配置为明文且被 Git 忽略，示例不含真实密钥；忽略规则不会移除已跟踪文件。当前配置迁移已完成，45 项离线测试通过。

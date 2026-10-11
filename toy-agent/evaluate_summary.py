@@ -8,8 +8,8 @@ import sys
 from urllib.error import HTTPError, URLError
 
 from deepseek_summary import (
-    MAX_TOKENS, MODEL, SUMMARY_PROMPT, SummaryError, display_summary,
-    inspect_response, read_api_key, request_completion,
+    DEFAULT_CONFIG_PATH, MAX_TOKENS, MODEL, SUMMARY_PROMPT, SummaryError, display_summary,
+    inspect_response, read_config_api_key, request_completion,
 )
 
 CASES_PATH = Path(__file__).parent / 'evals' / 'project_summary_cases.json'
@@ -73,20 +73,23 @@ def evaluate(api_key: str, cases: list[dict]) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--key-file', type=Path, required=True)
+    parser.add_argument('--config', type=Path, default=DEFAULT_CONFIG_PATH, help='TOML 配置路径，默认仓库根目录 config/local.toml')
     parser.add_argument('--cases', type=Path, default=CASES_PATH, help='评估集 JSON 路径，默认使用原六条样例')
     parser.add_argument('--output', type=Path, required=True, help='新建 JSON 结果文件，拒绝覆盖已有文件')
     args = parser.parse_args()
     try:
         cases = load_cases(args.cases)
-        api_key = read_api_key(args.key_file)
+        api_key = read_config_api_key(args.config)
         # Reserve the destination before spending tokens; never overwrite an earlier run.
         with args.output.open('x', encoding='utf-8') as output:
             report = evaluate(api_key, cases)
             json.dump(report, output, ensure_ascii=False, indent=2)
             output.write('\n')
-    except (SummaryError, OSError, ValueError):
-        print('错误：请检查评估集、仓库外密钥及新建输出文件路径。', file=sys.stderr)
+    except SummaryError as error:
+        print(f'错误：{error}', file=sys.stderr)
+        return 1
+    except (OSError, ValueError):
+        print('错误：请检查评估集及新建输出文件路径。', file=sys.stderr)
         return 1
     print(f'结果已保存：{args.output}；事实评审待逐条核对。')
     return int(any(case['error'] for case in report['cases']))

@@ -68,13 +68,13 @@ class EvaluationTests(unittest.TestCase):
             with self.subTest(explicit=explicit), tempfile.TemporaryDirectory() as folder:
                 output = Path(folder) / 'result.json'
                 selected = Path(folder) / 'custom.json' if explicit else CASES_PATH
-                argv = ['evaluate_summary.py', '--key-file', 'unused', '--output', str(output)]
+                argv = ['evaluate_summary.py', '--output', str(output)]
                 if explicit:
                     argv += ['--cases', str(selected)]
                 report = {'cases': [], 'usage_totals': [0, 0, 0]}
                 with patch.object(sys, 'argv', argv), \
                      patch('evaluate_summary.load_cases', return_value=[]) as load, \
-                     patch('evaluate_summary.read_api_key', return_value='fake-key'), \
+                     patch('evaluate_summary.read_config_api_key', return_value='fake-key'), \
                      patch('evaluate_summary.evaluate', return_value=report) as collect, \
                      redirect_stdout(io.StringIO()):
                     self.assertEqual(main(), 0)
@@ -90,7 +90,7 @@ class EvaluationTests(unittest.TestCase):
         self.assertNotIn('tools', payload)
         self.assertNotIn('tool_choice', payload)
         self.assertEqual(payload['response_format'], {'type': 'json_object'})
-        self.assertEqual(payload['max_tokens'], 400)
+        self.assertEqual(payload['max_tokens'], 800)
         self.assertEqual(send.call_args.kwargs['timeout'], 30)
 
 

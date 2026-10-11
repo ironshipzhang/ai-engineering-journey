@@ -5,13 +5,14 @@ import json
 from pathlib import Path
 import socket
 import sys
+import tomllib
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
 API_URL = "https://api.deepseek.com/chat/completions"
 MODEL = "deepseek-flash"
-MAX_TOKENS = 400
+MAX_TOKENS = 800
 MAX_REQUESTS = 5
 SUMMARY_FIELDS = ("progress", "blockers", "next_steps")
 PROJECT_STATUS = """以下是虚构项目“星桥”的状态：
@@ -26,15 +27,32 @@ class SummaryError(Exception):
     """A safe, locally defined message suitable for terminal output."""
 
 
-def read_api_key(path: Path) -> str:
+DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "local.toml"
+
+
+def read_config_api_key(path: Path = DEFAULT_CONFIG_PATH) -> str:
+    """Read only the API key; never expose TOML contents or parser diagnostics."""
     try:
-        key = path.read_text(encoding="utf-8").strip()
-    except (OSError, UnicodeError):
-        raise SummaryError("无法读取密钥文件；请检查文件是否存在、权限及 UTF-8 编码。尚未发送请求。") from None
-    if not key:
-        raise SummaryError("密钥文件为空；尚未发送请求。")
+        with path.open("rb") as source:
+            config = tomllib.load(source)
+    except FileNotFoundError:
+        raise SummaryError("配置文件不存在；请复制 config.example.toml 到 config/local.toml 并填写 model.api_key，或指定 --config。尚未发送请求。") from None
+    except (tomllib.TOMLDecodeError, UnicodeError):
+        raise SummaryError("配置文件不是有效的 UTF-8 TOML；请检查格式。尚未发送请求。") from None
+    except OSError:
+        raise SummaryError("无法读取配置文件；请检查路径及权限。尚未发送请求。") from None
+    model = config.get("model")
+    if not isinstance(model, dict) or "api_key" not in model:
+        raise SummaryError("配置缺少 model.api_key；尚未发送请求。")
+    key = model["api_key"]
+    if not isinstance(key, str):
+        raise SummaryError("model.api_key 必须是字符串；尚未发送请求。")
+    if not key.strip():
+        raise SummaryError("model.api_key 不能为空；尚未发送请求。")
+    if key.strip() == "YOUR_API_KEY":
+        raise SummaryError("model.api_key 仍是示例占位符；请填写真实密钥。尚未发送请求。")
     if any(character.isspace() for character in key):
-        raise SummaryError("密钥应为单行纯文本；尚未发送请求。")
+        raise SummaryError("model.api_key 不得包含空白字符；尚未发送请求。")
     return key
 
 
@@ -152,7 +170,52 @@ def validate_tool_call(message: dict, reason: str) -> dict:
     }}
 
 
-def run_project_summary(api_key: str) -> None:
+def empty_run_result() -> dict:
+    return {"status": "failed", "summary": None, "error": None,
+            "model_requests": 0,
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0,
+                      "complete": True},
+            "tool_executions": 0, "cache_hits": 0, "trace": []}
+
+
+def known_usage(response) -> dict | None:
+    """Usage can remain valid even when the response message is malformed."""
+    names = ("prompt_tokens", "completion_tokens", "total_tokens")
+    if not isinstance(response, dict) or not isinstance(response.get("usage"), dict):
+        return None
+    values = [response["usage"].get(name) for name in names]
+    if any(type(value) is not int or value < 0 for value in values):
+        return None
+    return dict(zip(names, values))
+
+
+def safe_error(error: Exception, stage: str) -> dict:
+    if isinstance(error, HTTPError):
+        hints = {400: "请求参数无效", 401: "认证失败", 402: "余额不足", 422: "请求参数无法处理",
+                 429: "请求限流", 500: "服务内部错误", 503: "服务繁忙"}
+        message = f"HTTP {error.code}，{hints.get(error.code, 'API 请求失败')}；未自动重试。"
+        error.close()
+        category = "http_error"
+    elif isinstance(error, (URLError, TimeoutError, socket.timeout)):
+        category = "network_error"
+        message = "网络连接失败或超时；未自动重试。超时不代表服务端未处理请求。"
+    elif isinstance(error, SummaryError):
+        category, message = stage, str(error)
+    else:
+        category, message = stage, "本地操作失败或响应无法解析；未自动重试。"
+    return {"category": category, "message": message}
+
+
+def record_failure(result: dict, error: Exception, stage: str, request_number: int,
+                   tool: dict | None = None) -> dict:
+    result["error"] = safe_error(error, stage)
+    result["trace"].append({"event": "failure", "request_number": request_number,
+                            "stage": stage, "error": result["error"], **(tool or {})})
+    return result
+
+
+def run_project_summary(api_key: str) -> dict:
+    """Return execution/structure status, not a factual-quality verdict; never print."""
     messages = [
         {"role": "system", "content": SUMMARY_PROMPT + (
             "需要项目数据时使用 get_project，每轮最多调用一次。"
@@ -160,39 +223,92 @@ def run_project_summary(api_key: str) -> None:
         )},
         {"role": "user", "content": "请查询项目 ID 为 xingqiao 的虚构项目，并总结项目状态。"},
     ]
-    # Task-local success cache: JSON formatting and call IDs are not cache keys.
     successful_results: dict[str, dict[str, str]] = {}
-    totals = [0, 0, 0]
+    result = empty_run_result()
     for request_number in range(1, MAX_REQUESTS + 1):
-        response = request_completion(api_key, messages)
-        message, reason, counts = inspect_response(response, f"第 {request_number} 轮")
-        totals = [a + b for a, b in zip(totals, counts)]
-        print(f"累计 Token 用量：输入={totals[0]}，输出={totals[1]}，总计={totals[2]}")
-        if reason == "stop":
-            if message.get("tool_calls"):
-                raise SummaryError("结束原因与工具调用不一致；任务结束。")
-            if not successful_results:
-                raise SummaryError("尚未成功取得项目数据；不接受最终摘要。")
-            display_summary(message, reason)
-            return
-        # Reject truncation, abnormal finish reasons and invalid calls before execution.
-        call = validate_tool_call(message, reason)
-        if request_number == MAX_REQUESTS:
-            raise SummaryError(f"已达到 {MAX_REQUESTS} 次模型请求上限，仍需工具调用；不执行工具，任务结束。")
-        params = json.loads(call["function"]["arguments"])
-        project_id = params["project_id"]
-        print(f"模型提出工具调用：get_project；ID={call['id']}；参数={json.dumps(params, ensure_ascii=False)}")
-        if project_id in successful_results:
-            result = successful_results[project_id]
-            print("复用本任务内成功的 get_project 结果。")
-        else:
-            # An exception exits the task before storing anything: failures are never cached.
-            result = get_project(project_id)
-            successful_results[project_id] = result
-            print("本地只读 get_project 执行成功。")
-        messages.append({"role": "assistant", "content": message.get("content"), "tool_calls": [call]})
-        messages.append({"role": "tool", "tool_call_id": call["id"],
-                         "content": json.dumps(result, ensure_ascii=False)})
+        result["model_requests"] += 1
+        event = {"event": "model_request", "request_number": request_number,
+                 "finish_reason": None, "usage": None}
+        result["trace"].append(event)
+        stage = "request"
+        tool = None
+        try:
+            response = request_completion(api_key, messages)
+            counts = known_usage(response)
+            event["usage"] = counts
+            if counts is not None:
+                for name, count in counts.items():
+                    result["usage"][name] += count
+            else:
+                result["usage"]["complete"] = False
+            stage = "response_validation"
+            # Extract only validated metadata; no remote payload is persisted.
+            try:
+                choice = response["choices"][0]
+                message, reason = choice["message"], choice["finish_reason"]
+                if isinstance(reason, str):
+                    event["finish_reason"] = reason
+                if (not isinstance(message, dict) or message.get("role") != "assistant"
+                        or not isinstance(reason, str) or counts is None):
+                    raise ValueError
+            except (KeyError, IndexError, TypeError, ValueError):
+                raise SummaryError("响应格式异常：缺少有效消息、结束原因或 token 用量。") from None
+            if reason == "stop":
+                stage = "summary_validation"
+                if message.get("tool_calls"):
+                    raise SummaryError("结束原因与工具调用不一致；任务结束。")
+                if not successful_results:
+                    raise SummaryError("尚未成功取得项目数据；不接受最终摘要。")
+                result["summary"] = parse_summary(message.get("content"))
+                result["status"] = "succeeded"
+                return result
+            stage = "tool_validation"
+            call = validate_tool_call(message, reason)
+            params = json.loads(call["function"]["arguments"])
+            tool = {"tool_name": "get_project", "call_id": call["id"], "parameters": params}
+            stage = "request_limit"
+            if request_number == MAX_REQUESTS:
+                raise SummaryError(f"已达到 {MAX_REQUESTS} 次模型请求上限，仍需工具调用；不执行工具，任务结束。")
+            project_id = params["project_id"]
+            if project_id in successful_results:
+                data = successful_results[project_id]
+                result["cache_hits"] += 1
+                result["trace"].append({"event": "cache_hit", "request_number": request_number, **tool})
+            else:
+                stage = "tool_execution"
+                result["tool_executions"] += 1
+                execution = {"event": "tool_execution", "request_number": request_number,
+                             "status": "failed", **tool}
+                result["trace"].append(execution)
+                data = get_project(project_id)
+                successful_results[project_id] = data
+                execution["status"] = "succeeded"
+            messages.append({"role": "assistant", "content": message.get("content"), "tool_calls": [call]})
+            messages.append({"role": "tool", "tool_call_id": call["id"],
+                             "content": json.dumps(data, ensure_ascii=False)})
+        except (SummaryError, HTTPError, URLError, TimeoutError, ValueError, OSError) as error:
+            if event["usage"] is None:
+                result["usage"]["complete"] = False
+            return record_failure(result, error, stage, request_number, tool)
+
+
+def display_run_result(result: dict) -> None:
+    for event in result["trace"]:
+        if event["event"] == "model_request":
+            print(f"第 {event['request_number']} 轮 Token 用量：{event['usage']}；结束原因：{event['finish_reason']}")
+        elif event["event"] == "tool_execution":
+            print(f"本地只读 get_project 执行状态：{event['status']}；ID={event['call_id']}；"
+                  f"参数={json.dumps(event['parameters'], ensure_ascii=False)}")
+        elif event["event"] == "cache_hit":
+            print(f"复用本任务内成功的 get_project 结果；ID={event['call_id']}。")
+    usage = result["usage"]
+    print(f"累计已知 Token 用量：输入={usage['prompt_tokens']}，输出={usage['completion_tokens']}，"
+          f"总计={usage['total_tokens']}；用量完整={usage['complete']}")
+    if result["status"] == "succeeded":
+        print("结构化摘要：")
+        print(json.dumps(result["summary"], ensure_ascii=False, indent=2))
+    else:
+        print(f"错误：{result['error']['message']}", file=sys.stderr)
 
 
 def parse_summary(content: str) -> dict[str, list[str]]:
@@ -239,27 +355,37 @@ def display_summary(message: dict, reason: str) -> dict[str, list[str]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--key-file", type=Path, required=True, help="仓库外的单行密钥文件")
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH, help="TOML 配置路径，默认仓库根目录 config/local.toml")
+    parser.add_argument("--output", type=Path, help="新建结果 JSON 文件，拒绝覆盖")
     args = parser.parse_args()
+    output = None
     try:
-        api_key = read_api_key(args.key_file)
-        run_project_summary(api_key)
-    except HTTPError as error:
-        hints = {400: "请求参数无效", 401: "认证失败", 402: "余额不足", 422: "请求参数无法处理", 429: "请求限流", 500: "服务内部错误", 503: "服务繁忙"}
-        print(f"错误：HTTP {error.code}，{hints.get(error.code, 'API 请求失败')}；未自动重试。", file=sys.stderr)
-        error.close()
+        # Reserve before reading credentials or attempting a paid request.
+        if args.output is not None:
+            output = args.output.open("x", encoding="utf-8")
+        try:
+            api_key = read_config_api_key(args.config)
+            result = run_project_summary(api_key)
+        except SummaryError as error:
+            result = record_failure(empty_run_result(), error, "configuration", 0)
+        display_run_result(result)
+        if output is not None:
+            json.dump(result, output, ensure_ascii=False, indent=2)
+            output.write("\n")
+            output.flush()
+            output.close()
+            output = None
+        return int(result["status"] != "succeeded")
+    except (OSError, ValueError):
+        print("错误：无法新建或保存结果文件；请检查路径、权限及已有文件。", file=sys.stderr)
         return 1
-    except (URLError, TimeoutError, socket.timeout):
-        print("错误：网络连接失败或超时；未自动重试。超时不代表服务端未处理请求。", file=sys.stderr)
-        return 1
-    except SummaryError as error:
-        print(f"错误：{error}", file=sys.stderr)
-        return 1
-    except (ValueError, OSError):
-        # Do not expose raw exceptions: remote responses may contain sensitive data.
-        print("错误：密钥文件无效或响应无法解析；请检查文件配置和 API 响应结构。", file=sys.stderr)
-        return 1
-    return 0
+    finally:
+        if output is not None:
+            try:
+                output.close()
+            except OSError:
+                # Cleanup after a reported write failure; normal close is checked above.
+                pass
 
 
 if __name__ == "__main__":

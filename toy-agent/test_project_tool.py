@@ -1,6 +1,6 @@
 """Offline checks of execution boundaries and the bounded Agent Loop."""
 
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 from copy import deepcopy
 import io
 import json
@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from deepseek_summary import (
-    SummaryError, get_project, request_completion, run_project_summary, validate_tool_call,
+    SummaryError, display_run_result, get_project, request_completion, run_project_summary, validate_tool_call,
 )
 
 
@@ -27,6 +27,15 @@ def response(message, reason, counts=(10, 5, 15)):
 
 
 class ProjectToolTests(unittest.TestCase):
+    @contextmanager
+    def returned_failure(self, message=None):
+        yield
+        self.assertEqual(self.result['status'], 'failed')
+        self.assertIsNone(self.result['summary'])
+        self.assertEqual(self.result['trace'][-1]['event'], 'failure')
+        if message:
+            self.assertIn(message, self.result['error']['message'])
+
     def run_with_responses(self, responses):
         captured = []
         def fake_request(key, messages):
@@ -37,7 +46,8 @@ class ProjectToolTests(unittest.TestCase):
             return item
         output = io.StringIO()
         with patch('deepseek_summary.request_completion', side_effect=fake_request), redirect_stdout(output):
-            run_project_summary('fake-key')
+            self.result = run_project_summary('fake-key')
+            display_run_result(self.result)
         return captured, output.getvalue()
 
     def test_valid_flow_binds_result_and_keeps_data_out_of_first_request(self):
@@ -54,6 +64,11 @@ class ProjectToolTests(unittest.TestCase):
         result = second[3]
         self.assertEqual(result['tool_call_id'], call['id'])
         self.assertEqual(json.loads(result['content']), get_project('xingqiao'))
+        self.assertEqual(self.result['status'], 'succeeded')
+        self.assertEqual(self.result['summary'], summary)
+        self.assertEqual(self.result['model_requests'], 2)
+        self.assertEqual(self.result['tool_executions'], 1)
+        self.assertTrue(self.result['usage']['complete'])
         self.assertIn('总计=43', output)
         self.assertIn('结构化摘要', output)
 
@@ -70,18 +85,23 @@ class ProjectToolTests(unittest.TestCase):
         for msg in cases:
             with self.subTest(message=msg), patch('deepseek_summary.get_project') as execute, \
                  patch('deepseek_summary.request_completion', return_value=response(msg, 'tool_calls')) as request, \
-                 redirect_stdout(io.StringIO()), self.assertRaises(SummaryError):
-                run_project_summary('fake-key')
+                 redirect_stdout(io.StringIO()), self.returned_failure():
+                self.result = run_project_summary('fake-key')
             execute.assert_not_called()
+            self.assertEqual(self.result['tool_executions'], 0)
+            self.assertEqual(self.result['trace'][-1]['stage'], 'tool_validation')
             self.assertEqual(request.call_count, 1)
 
     def test_unknown_project_stops_before_second_request(self):
         msg = tool_message()
         msg['tool_calls'][0]['function']['arguments'] = '{"project_id":"unknown"}'
         with patch('deepseek_summary.request_completion', return_value=response(msg, 'tool_calls')) as request, \
-             redirect_stdout(io.StringIO()), self.assertRaisesRegex(SummaryError, '项目不存在'):
-            run_project_summary('fake-key')
+             redirect_stdout(io.StringIO()), self.returned_failure('项目不存在'):
+            self.result = run_project_summary('fake-key')
         self.assertEqual(request.call_count, 1)
+        self.assertEqual(self.result['tool_executions'], 1)
+        self.assertEqual(self.result['trace'][1]['status'], 'failed')
+        self.assertEqual(self.result['trace'][-1]['stage'], 'tool_execution')
 
     def test_wrong_first_finish_reason_is_rejected(self):
         for reason in ('stop', 'length', 'content_filter'):
@@ -91,7 +111,7 @@ class ProjectToolTests(unittest.TestCase):
     def test_final_summary_still_requires_valid_structure_and_finish(self):
         for content, reason in [('{}', 'stop'), ('not json', 'stop'),
                                 ('{"progress":[],"blockers":[],"next_steps":[]}', 'length')]:
-            with self.subTest(content=content, reason=reason), self.assertRaises(SummaryError):
+            with self.subTest(content=content, reason=reason), self.returned_failure():
                 self.run_with_responses([response(tool_message(), 'tool_calls'),
                     response({"role": "assistant", "content": content}, reason)])
 
@@ -99,10 +119,13 @@ class ProjectToolTests(unittest.TestCase):
         output = io.StringIO()
         with patch('deepseek_summary.request_completion', side_effect=[
                 response(tool_message(), 'tool_calls'), socket.timeout()]) as request, \
-             redirect_stdout(output), self.assertRaises(socket.timeout):
-            run_project_summary('fake-key')
+             redirect_stdout(output), self.returned_failure("超时"):
+            self.result = run_project_summary('fake-key')
         self.assertEqual(request.call_count, 2)
-        self.assertIn('第 1 轮 Token 用量', output.getvalue())
+        self.assertEqual(self.result['model_requests'], 2)
+        self.assertEqual(self.result['usage'], {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15, 'complete': False})
+        self.assertEqual([e['event'] for e in self.result['trace']], ['model_request', 'tool_execution', 'model_request', 'failure'])
+        self.assertIsNone(self.result['trace'][2]['usage'])
         self.assertNotIn('结构化摘要', output.getvalue())
 
     def test_transport_always_offers_tool_with_json_without_forced_choice(self):
@@ -111,7 +134,7 @@ class ProjectToolTests(unittest.TestCase):
             request_completion('fake-key', [])
             payload = json.loads(send.call_args.args[0].data)
             self.assertEqual(send.call_args.kwargs['timeout'], 30)
-            self.assertEqual(payload['max_tokens'], 400)
+            self.assertEqual(payload['max_tokens'], 800)
             self.assertEqual(payload['thinking'], {'type': 'disabled'})
             self.assertFalse(payload['stream'])
             self.assertEqual(payload['tools'][0]['function']['name'], 'get_project')
@@ -132,6 +155,10 @@ class ProjectToolTests(unittest.TestCase):
         self.assertEqual(captured[2][-1]['tool_call_id'], 'call_second')
         self.assertEqual(captured[2][-3]['tool_call_id'], 'call_test')
         self.assertEqual(captured[2][-1]['content'], captured[2][-3]['content'])
+        self.assertEqual(self.result['cache_hits'], 1)
+        self.assertEqual(self.result['tool_executions'], 1)
+        self.assertEqual(self.result['trace'][3]['call_id'], 'call_second')
+        self.assertEqual(self.result['trace'][3]['parameters'], {'project_id': 'xingqiao'})
         self.assertIn('复用', output)
         self.assertIn('总计=45', output)
 
@@ -139,8 +166,8 @@ class ProjectToolTests(unittest.TestCase):
         answer = response({'role': 'assistant', 'content': '{"progress":[],"blockers":[],"next_steps":[]}'}, 'stop')
         with patch('deepseek_summary.request_completion', return_value=answer) as request, \
              patch('deepseek_summary.get_project') as execute, redirect_stdout(io.StringIO()), \
-             self.assertRaisesRegex(SummaryError, '尚未成功取得项目数据'):
-            run_project_summary('fake-key')
+             self.returned_failure('尚未成功取得项目数据'):
+            self.result = run_project_summary('fake-key')
         request.assert_called_once()
         execute.assert_not_called()
 
@@ -153,11 +180,14 @@ class ProjectToolTests(unittest.TestCase):
         output = io.StringIO()
         with patch('deepseek_summary.request_completion', side_effect=responses) as request, \
              patch('deepseek_summary.get_project', wraps=get_project) as execute, \
-             redirect_stdout(output), self.assertRaisesRegex(SummaryError, '5 次模型请求上限'):
-            run_project_summary('fake-key')
+             redirect_stdout(output), self.returned_failure('5 次模型请求上限'):
+            self.result = run_project_summary('fake-key')
         self.assertEqual(request.call_count, 5)
         execute.assert_called_once()
-        self.assertIn('总计=75', output.getvalue())
+        self.assertEqual(self.result['usage']['total_tokens'], 75)
+        self.assertEqual(self.result['cache_hits'], 3)
+        self.assertEqual(self.result['trace'][-1]['stage'], 'request_limit')
+        self.assertEqual(self.result['trace'][-1]['call_id'], 'call_4')
         self.assertNotIn('结构化摘要', output.getvalue())
 
     def test_final_answer_on_fifth_request_is_accepted(self):
@@ -172,8 +202,8 @@ class ProjectToolTests(unittest.TestCase):
         messages[-1]['tool_calls'][0]['function']['arguments'] = '{"project_id":"another"}'
         with patch('deepseek_summary.request_completion', side_effect=[response(m, 'tool_calls') for m in messages]) as request, \
              patch('deepseek_summary.get_project', wraps=get_project) as execute, \
-             redirect_stdout(io.StringIO()), self.assertRaisesRegex(SummaryError, '上限'):
-            run_project_summary('fake-key')
+             redirect_stdout(io.StringIO()), self.returned_failure('上限'):
+            self.result = run_project_summary('fake-key')
         self.assertEqual(request.call_count, 5)
         execute.assert_called_once_with('xingqiao')
 
@@ -181,7 +211,7 @@ class ProjectToolTests(unittest.TestCase):
         first = response(tool_message(), 'tool_calls')
         final = response({'role': 'assistant', 'content': '{"progress":[],"blockers":[],"next_steps":[]}'}, 'stop')
         with patch('deepseek_summary.get_project', side_effect=[SummaryError('工具失败'), get_project('xingqiao'), get_project('xingqiao')]) as execute:
-            with self.assertRaisesRegex(SummaryError, '工具失败'):
+            with self.returned_failure('工具失败'):
                 self.run_with_responses([first])
             self.run_with_responses([first, final])
             self.run_with_responses([first, final])
@@ -192,13 +222,13 @@ class ProjectToolTests(unittest.TestCase):
             with self.subTest(reason=reason), \
                  patch('deepseek_summary.request_completion', return_value=response(tool_message(), reason)) as request, \
                  patch('deepseek_summary.get_project') as execute, \
-                 redirect_stdout(io.StringIO()), self.assertRaises(SummaryError):
-                run_project_summary('fake-key')
+                 redirect_stdout(io.StringIO()), self.returned_failure():
+                self.result = run_project_summary('fake-key')
             request.assert_called_once()
             execute.assert_not_called()
 
     def test_stop_with_tool_call_is_rejected(self):
-        with self.assertRaisesRegex(SummaryError, '不一致'):
+        with self.returned_failure('不一致'):
             self.run_with_responses([response(tool_message(), 'tool_calls'), response(tool_message(), 'stop')])
 
 

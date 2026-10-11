@@ -1,5 +1,7 @@
 # 小型项目摘要事实评估
 
+> 阶段状态：学习练习已结束。以下保留历史标准、输出和评审过程，不作为当前改词或追分待办。后续端到端评估随新机制另行安排。
+
 ## 范围与数据
 
 本轮只测“给定项目状态 → 结构化摘要”，不重复评估工具选择或 Loop 控制。使用已有 SUMMARY_PROMPT、deepseek-flash、非思考模式、JSON 输出、400 输出 tokens 与 30 秒网络操作超时，每条样例一次请求，无自动重试、无额外评判模型或依赖。
@@ -40,7 +42,7 @@
 在仓库根目录运行（会产生模型费用；输出父目录需存在，文件必须不存在）：
 
 ```sh
-toy-agent/.venv/bin/python toy-agent/evaluate_summary.py --key-file /Users/ironshipzhang/Documents/secret/deepseek.txt --output /private/tmp/project-summary-eval-new.json
+toy-agent/.venv/bin/python toy-agent/evaluate_summary.py --output /private/tmp/project-summary-eval-new.json
 ```
 
 每个样例独立，单条失败后记录安全错误并继续下一个样例，不重试失败请求。有效响应中的用量即使摘要校验失败也计入累计；无有效响应时 usage=null，累计只是已知用量。存在生成失败时退出码 1，全部格式成功时退出码 0；退出码 0 不代表事实质量通过。脚本拒绝覆盖已有输出文件。

@@ -61,7 +61,8 @@
 
 ## Next
 
-- 提示词与模型调用继续冻结。可先讨论完整 Loop 的结构化结果与轨迹记录，并用离线模拟验证，再规划独立样例和端到端真实验证；当前仅为建议，不自动开展下一功能。
+- 用户确认结束当前内容调优练习，进入完整 Loop 的结构化结果与执行轨迹记录；编码在子会话进行，本任务仅离线验证，提示词继续冻结。实现范围与验收要求见 [任务说明](tasks/run-result-and-trace.md)。
+- 完整 Toy Agent 计划见 [TOY_AGENT_ROADMAP.md](TOY_AGENT_ROADMAP.md) 与 [进度图](toy-agent-progress.svg)：后续覆盖多项目与工具注册、小型 RAG、MCP、失败策略、端到端评估及 CLI 演示收尾；均尚未实现。
 
 ## Open Questions
 

@@ -126,15 +126,15 @@ toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --config ./config/local
 
 输出文件名必须尚未存在。evaluate_summary.py 同样支持 --config；不传时使用相同默认配置。
 
-1. 每轮 request_completion 发送当前 messages、get_project 工具定义与 response_format={"type":"json_object"}，省略 tool_choice，由模型自主选择工具调用或最终回答。
+1. 每轮 request_completion 发送当前 messages、Registry 中两个工具的定义与 response_format={"type":"json_object"}，省略 tool_choice，由模型自主选择工具调用或最终回答。
 2. run_project_summary 返回结构化结果，记录每轮用量、结束原因和事件，并更新累计已知用量；CLI 由 display_run_result 展示。inspect_response 保留用于独立摘要评估。
-3. tool_calls 分支由 validate_tool_call 校验工具名、类型、ID、调用数和参数；每轮只允许一个调用。首次成功查询存入任务内缓存，相同 project_id 后续复用，仍追加 assistant 与绑定当前 tool_call_id 的 tool 结果。
-4. stop 分支必须已有成功项目数据，再调用原有 parse_summary 校验摘要。未查询数据的直接回答立即失败，不自动补发查询。
-5. 最多 5 次模型请求；第五次若仍要求工具调用则终止，不执行该轮工具、不发送第六次请求；第五次有效最终摘要仍成功。
+3. tool_calls 分支由 validate_tool_calls 整批校验 1 或 2 个调用：类型、非空且批内唯一的 ID、注册名称、参数和目标项目。全部通过后才按模型顺序逐项执行或复用缓存；同批相同工具/参数、不同 ID 可复用第一项结果。全部成功后追加一条 assistant 消息及各自绑定当前 tool_call_id 的 tool 结果。任一执行失败立即停止，保留此前事件和已知用量。
+4. stop 分支必须已有任务所需的成功工具结果：summary 需要概况，issues 需要概况和问题列表，顺序不限，再调用原有 parse_summary 校验摘要。未查询数据的直接回答立即失败，不自动补发查询。
+5. 最多 5 次模型请求；第五次若仍要求工具调用则终止，整批不执行或复用、不发送第六次请求；第五次有效最终摘要仍成功。
 
 摘要必须且仅含 progress、blockers、next_steps；值必须为字符串数组，可为 []，元素不可是空白字符串。缺字段不自动补 []。
 每次请求关闭思考、非流式、max_tokens=800、30 秒网络操作超时，无自动重试。整个流程不设置额外的总时限。
-配置不存在、无法读取、TOML 无效、缺少 model.api_key、类型错误、空值、含空白或仍为示例占位符时联网前退出；非法调用、工具失败、超限、HTTP、网络和响应格式异常返回退出码 1，不打印密钥或原始错误响应。
+配置不存在、无法读取、TOML 无效、缺少 model.api_key、类型错误、空值、含空白或仍为示例占位符时联网前退出；数据加载失败、非法调用、工具失败、超限、HTTP、网络和响应格式异常返回退出码 1，不打印密钥或原始错误响应。
 工具调用须 tool_calls、最终摘要须 stop 正常结束；length 截断或其他结束原因直接失败。失败前已确认的每轮和累计用量保留于结果并在终端显示，未知轮次 usage=null、累计 complete=false，实际计费须查平台账单。
 
 离线验证（不读取密钥、不调用模型）：
@@ -158,6 +158,57 @@ toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --config /private/tmp/n
 官方入口：https://platform.deepseek.com/
 价格与能力：https://api-docs.deepseek.com/quick_start/pricing/
 价格查验日期：2026-10-02。具体费率以实际调用时官方页面为准。
+
+## 多项目与任务输入：2026-10-12
+
+默认命令等价于 `--project-id xingqiao --task summary`，保持已有运行方式。新命令示例（会联网，本轮未执行）：
+
+```sh
+toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --project-id yunfan --task summary
+toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --project-id xingqiao --task issues --output test-output/issues-new.json
+```
+
+summary 查询项目概况；issues 结合概况和问题记录生成同样的三字段摘要。模型决定调用顺序，程序在最终回答时检查成功结果是否齐全；不自动补发调用。--task 只接受 summary / issues；--project-id 必须非空，工具不得查询其他项目。两个任务均提供两个只读工具。
+
+可版本控制的数据文件是 `toy-agent/data/projects.json`，内含虚构星桥（有问题）与云帆（issues=[]）。直接编辑此文件即可新增/修改项目，下次任务重新读取；同一次任务使用开始时的快照。路径按脚本位置定位，换启动目录不影响数据读取，没有新增 CLI 数据路径参数。
+
+文件顶层为非空数组；项目严格包含 project_id、name、status、issues，前三者为非空字符串且项目 ID 唯一。issues 允许空数组，每条严格包含非空字符串 id、title、status、description，ID 在项目内唯一。status 可使用 investigating、resolved 等状态文本，无枚举限制。仅写虚构数据，不写真实公司数据。
+
+空 issues 是正常成功结果；未知项目在工具执行时失败；缺失、损坏或结构错误的文件在首次模型请求前失败，均不伪装为空问题列表。整个文件一次完整校验，其中任何坏记录都会使任务失败。
+
+60 项离线测试通过，保留原 45 项核心断言并新增 15 项；不读取真实配置、不调用模型。模拟结果与轨迹见 [任务 D 交接](tasks/multi-project-registry.md)，本地完整 JSON 位于已忽略的 test-output/task-d-*-simulated.json。摘要与用量均为预设响应，仅验证程序控制，不能证明真实模型工具选择或内容质量。
+
+## D2：单轮最多两个工具调用（2026-10-12）
+
+每轮允许 1 或 2 个调用，整批校验后顺序执行；这不是并发。非法第二项使整批零执行；执行第二项失败时保留第一项只读成功轨迹并停止。请求仍最多 5 次，调用数不改变模型请求计数。JSON 中 model_request.tool_call_count 记录每轮调用数量，终端也显示。
+
+本轮实际验证：原 60 项测试先通过；改造后 71 项离线测试通过，新增 11 项批次场景。离线命令：
+
+```sh
+# 完整回归，不读取真实密钥或联网
+toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
+
+# 只检查 D2 批次场景，共 11 项
+toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_tool_batches.py' -v
+```
+
+手动测试命令（会调用真实模型，不强制模型必须同轮调用两个工具）：
+
+```sh
+# 默认 summary 输出到控制台
+toy-agent/.venv/bin/python toy-agent/deepseek_summary.py
+
+# issues 输出到控制台
+toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --project-id xingqiao --task issues
+
+# 同时输出控制台和保存 JSON，父目录须存在，文件名须尚不存在
+mkdir -p test-output
+toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --project-id xingqiao --task issues --output test-output/d2-issues-user-001.json
+```
+
+--output 不静默覆盖；重复手动测试需换新文件名。本轮唯一一次真实任务已保存为 `test-output/d2-issues-001.json`：第 1 轮提出 2 个调用，按 get_project → list_project_issues 顺序执行成功；第 2 轮 stop、0 个调用，最终 succeeded。2 次模型请求、2 次执行、0 次缓存；第 1 轮输入 775 / 输出 75 / 总计 850，第 2 轮输入 1078 / 输出 96 / 总计 1174；累计输入 1853 / 输出 171 / 总计 2024 tokens，complete=true。JSON 已核对与终端一致，不保存认证信息。
+
+本轮没有重试或第二次真实任务。仅证明这一次真实 issues 成功，不能保证后续工具选择或内容质量；云帆空问题列表、反向顺序及异常批次仅离线验证。详情见 [D2 交接](tasks/two-tool-batches.md)。
 
 ## 历史验证：固定一次只读工具调用（2026-10-10）
 

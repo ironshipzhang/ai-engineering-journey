@@ -6,10 +6,10 @@ import io
 import json
 import socket
 import unittest
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from deepseek_summary import (
-    SummaryError, display_run_result, get_project, request_completion, run_project_summary, validate_tool_call,
+    SummaryError, display_run_result, get_project, load_projects, request_completion, run_project_summary, validate_tool_calls,
 )
 
 
@@ -63,7 +63,7 @@ class ProjectToolTests(unittest.TestCase):
         call = second[2]['tool_calls'][0]
         result = second[3]
         self.assertEqual(result['tool_call_id'], call['id'])
-        self.assertEqual(json.loads(result['content']), get_project('xingqiao'))
+        self.assertEqual(json.loads(result['content']), get_project('xingqiao', load_projects()))
         self.assertEqual(self.result['status'], 'succeeded')
         self.assertEqual(self.result['summary'], summary)
         self.assertEqual(self.result['model_requests'], 2)
@@ -74,7 +74,8 @@ class ProjectToolTests(unittest.TestCase):
 
     def test_invalid_calls_stop_before_execution_and_second_request(self):
         cases = []
-        for calls in (None, [], [tool_message()['tool_calls'][0]] * 2, [None]):
+        for calls in (None, [], [tool_message()['tool_calls'][0]] * 2,
+                      [tool_message()['tool_calls'][0]] * 3, [None]):
             msg = tool_message(); msg['tool_calls'] = calls; cases.append(msg)
         for field, value in [('id', ''), ('id', 2), ('type', 'other'), ('function', None)]:
             msg = tool_message(); msg['tool_calls'][0][field] = value; cases.append(msg)
@@ -97,7 +98,7 @@ class ProjectToolTests(unittest.TestCase):
         msg['tool_calls'][0]['function']['arguments'] = '{"project_id":"unknown"}'
         with patch('deepseek_summary.request_completion', return_value=response(msg, 'tool_calls')) as request, \
              redirect_stdout(io.StringIO()), self.returned_failure('项目不存在'):
-            self.result = run_project_summary('fake-key')
+            self.result = run_project_summary('fake-key', 'unknown')
         self.assertEqual(request.call_count, 1)
         self.assertEqual(self.result['tool_executions'], 1)
         self.assertEqual(self.result['trace'][1]['status'], 'failed')
@@ -106,7 +107,7 @@ class ProjectToolTests(unittest.TestCase):
     def test_wrong_first_finish_reason_is_rejected(self):
         for reason in ('stop', 'length', 'content_filter'):
             with self.subTest(reason=reason), self.assertRaises(SummaryError):
-                validate_tool_call(tool_message(), reason)
+                validate_tool_calls(tool_message(), reason)
 
     def test_final_summary_still_requires_valid_structure_and_finish(self):
         for content, reason in [('{}', 'stop'), ('not json', 'stop'),
@@ -137,7 +138,8 @@ class ProjectToolTests(unittest.TestCase):
             self.assertEqual(payload['max_tokens'], 800)
             self.assertEqual(payload['thinking'], {'type': 'disabled'})
             self.assertFalse(payload['stream'])
-            self.assertEqual(payload['tools'][0]['function']['name'], 'get_project')
+            self.assertEqual([tool['function']['name'] for tool in payload['tools']],
+                             ['get_project', 'list_project_issues'])
             self.assertNotIn('tool_choice', payload)
             self.assertEqual(payload['response_format'], {'type': 'json_object'})
 
@@ -150,7 +152,7 @@ class ProjectToolTests(unittest.TestCase):
             captured, output = self.run_with_responses([
                 response(tool_message(), 'tool_calls'), response(second, 'tool_calls'), final,
             ])
-        execute.assert_called_once_with('xingqiao')
+        execute.assert_called_once_with('xingqiao', ANY)
         self.assertEqual(len(captured), 3)
         self.assertEqual(captured[2][-1]['tool_call_id'], 'call_second')
         self.assertEqual(captured[2][-3]['tool_call_id'], 'call_test')
@@ -199,18 +201,22 @@ class ProjectToolTests(unittest.TestCase):
 
     def test_fifth_request_does_not_execute_a_new_tool(self):
         messages = [tool_message() for _ in range(5)]
-        messages[-1]['tool_calls'][0]['function']['arguments'] = '{"project_id":"another"}'
+        messages[-1]['tool_calls'][0]['function']['name'] = 'list_project_issues'
         with patch('deepseek_summary.request_completion', side_effect=[response(m, 'tool_calls') for m in messages]) as request, \
              patch('deepseek_summary.get_project', wraps=get_project) as execute, \
+             patch('deepseek_summary.list_project_issues') as issues, \
              redirect_stdout(io.StringIO()), self.returned_failure('上限'):
             self.result = run_project_summary('fake-key')
+        issues.assert_not_called()
+        self.assertEqual(self.result['tool_executions'], 1)
+        self.assertEqual(self.result['trace'][-1]['tool_name'], 'list_project_issues')
         self.assertEqual(request.call_count, 5)
-        execute.assert_called_once_with('xingqiao')
+        execute.assert_called_once_with('xingqiao', ANY)
 
     def test_cache_is_task_local_and_failure_is_not_reused_in_next_task(self):
         first = response(tool_message(), 'tool_calls')
         final = response({'role': 'assistant', 'content': '{"progress":[],"blockers":[],"next_steps":[]}'}, 'stop')
-        with patch('deepseek_summary.get_project', side_effect=[SummaryError('工具失败'), get_project('xingqiao'), get_project('xingqiao')]) as execute:
+        with patch('deepseek_summary.get_project', side_effect=[SummaryError('工具失败'), get_project('xingqiao', load_projects()), get_project('xingqiao', load_projects())]) as execute:
             with self.returned_failure('工具失败'):
                 self.run_with_responses([first])
             self.run_with_responses([first, final])

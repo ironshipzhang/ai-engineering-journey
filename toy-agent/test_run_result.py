@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
 
-from deepseek_summary import SummaryError, main, run_project_summary
+from deepseek_summary import SummaryError, load_projects, main, run_project_summary
 from test_project_tool import response, tool_message
 
 
@@ -121,8 +121,10 @@ class RunResultTests(unittest.TestCase):
     def test_output_write_flush_or_close_failure_returns_nonzero(self):
         final = response({'role': 'assistant', 'content':
                           '{"progress":[],"blockers":[],"next_steps":[]}'}, 'stop')
+        snapshot = load_projects()
         for failing_method in ('write', 'flush', 'close'):
             with self.subTest(method=failing_method), patch('deepseek_summary.Path.open') as opened, \
+                 patch('deepseek_summary.load_projects', return_value=snapshot), \
                  patch('deepseek_summary.read_config_api_key', return_value='fake-key'), \
                  patch('deepseek_summary.request_completion', side_effect=[response(tool_message(), 'tool_calls'), final]):
                 getattr(opened.return_value, failing_method).side_effect = OSError('private-path')

@@ -18,13 +18,15 @@
 
 ## 当前成果
 
-Toy Agent 已实现有界只读 Agent Loop：模型通过 get_project 查询虚构项目，程序校验并执行工具调用，复用本任务内成功结果，最后校验三字段结构化摘要；最多 5 次模型请求。
+Toy Agent 已实现有界只读 Agent Loop：用户选择项目与 summary / issues 任务，模型提出 get_project 或 list_project_issues 调用，Registry 校验并分发；任务内复用成功结果，最终校验必要取数与三字段结构化摘要，最多 5 次模型请求。虚构项目数据保存在 toy-agent/data/projects.json，每次任务读取一次快照。
 
 内容评估练习已结束：已完成样例构造、批量采集、版本比较及三维评审，历史输出与结论保留在 EVALUATION.md，不再作为当前调优待办。
 
 任务 C 已完成：Loop 返回结构化运行结果与执行轨迹，CLI 可展示或保存 JSON。39 项离线测试通过，正常真实运行与 --output 保存均已验证；异常路径通过离线模拟验证。
 
-下一项是 D：多项目输入与 Tool Registry。完整路线见 [TOY_AGENT_ROADMAP.md](docs/TOY_AGENT_ROADMAP.md)，最新状态见 [进度图](docs/toy-agent-progress.svg)。随后逐项学习小型 RAG、MCP、失败策略与端到端评估，最后完成 CLI 演示收尾。
+任务 D 与 D2 已通过主会话机制验收：每轮允许 1～2 个工具调用，整批校验后顺序执行，71 项离线测试通过；一次真实 issues 双工具链路成功。最新机制与验证见 [D2 交接](docs/tasks/two-tool-batches.md)。交接及模拟轨迹见 [任务 D 记录](docs/tasks/multi-project-registry.md)，完整路线见 [TOY_AGENT_ROADMAP.md](docs/TOY_AGENT_ROADMAP.md)。后续功能尚未实施。
+
+默认运行（会联网）：`toy-agent/.venv/bin/python toy-agent/deepseek_summary.py`，等价于 `--project-id xingqiao --task summary`；问题摘要可用 `--project-id yunfan --task issues`，仍支持 `--config` 和 `--output`。
 
 任务 C 的已完成实现范围见 [结果与执行轨迹任务说明](docs/tasks/run-result-and-trace.md)。
 

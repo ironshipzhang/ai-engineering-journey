@@ -6,36 +6,58 @@
 
 ```text
 CLI 可选独占创建输出文件，从 TOML 本地配置读取密钥
+  → 校验项目/任务输入，读取并校验 projects.json，建立任务快照
   → Loop 初始化 messages、成功结果缓存与结构化结果
-  → 最多 5 次模型请求，每轮提供 get_project + JSON 输出模式
+  → 最多 5 次模型请求，每轮从 Registry 提取两个工具 schema + JSON 输出模式
   → 请求前计数并记录事件；独立提取已知用量，检查 finish_reason
-      tool_calls → 校验单个调用 → 查询或复用成功结果
-                 → 追加 assistant 调用与 tool 结果 → 下一轮
-      stop       → 要求已成功取得项目数据 → 校验摘要 JSON → 返回 succeeded 结果
+      tool_calls → 整批校验 1～2 个调用、ID 唯一、注册名称、参数及目标范围
+                 → 未到第五轮：按返回顺序逐项执行或复用成功结果
+                 → 全部成功：追加一条 assistant 批调用消息 + 对应 tool 结果 → 下一轮
+      stop       → 检查本任务必需的目标项目工具结果 → 校验摘要 JSON → 返回 succeeded 结果
       其他       → 返回 failed 结果及此前轨迹
   → CLI 展示结果，可选写入 JSON；成功退出 0，失败或保存失败退出 1
 ```
 
 - Loop 中的 `request_completion` 每轮发送 tools 和 response_format=json_object，省略 tool_choice（有工具时 API 默认 auto）。关闭思考、非流式，输出上限为每次 800 tokens；JSON 输出规则同时写入 system 提示。
-- `validate_tool_call` 要求 tool_calls 正常结束、恰好一个 function 调用、非空 ID、工具名为 get_project；arguments 从 JSON 字符串解析，必须且仅包含非空字符串 project_id。
-- `get_project` 仅支持 xingqiao，从代码内 PROJECT_STATUS 读取虚构项目状态，无写操作。模型提出调用，程序校验并显式执行。
-- `run_project_summary` 的 MAX_REQUESTS=5 包含所有工具决策与最终摘要请求。第五次请求可正常提交摘要；若仍提出工具调用，校验后报超限，不执行工具、不发送第六次请求。
+- `validate_tool_calls` 要求 tool_calls 正常结束、数组含 1 或 2 个合法 function 调用；每项 ID 非空且本批内唯一，工具名称已注册；arguments 从 JSON 字符串解析，经注册项校验，必须且仅包含非空字符串 project_id，且与本次目标完全一致。整批通过前不执行任何工具；第二项无效也拒绝第一项。
+- `TOOL_REGISTRY` 是名称到小型 dataclass 的显式 dict；每项关联模型 schema、参数校验函数和执行适配函数。request_completion 提取 schema，validate_tool_calls 查询注册项，Loop 按注册项执行；无 eval、动态导入、任意函数查找、自动发现或通用 schema 引擎。
+- `get_project` 从快照返回 ID、名称和概况；`list_project_issues` 只返回 ID 和问题记录。二者均只读，模型输入不预装业务数据。
+- CLI 默认 project_id=xingqiao、task=summary；TASK_TOOLS 声明任务完成条件。summary 需要 get_project 成功结果；issues 需要两个工具的成功结果，顺序不限。两个任务均提供两个工具；summary 允许额外查询目标项目的问题，但这不能代替概况查询。程序不强制 tool_choice，不补发缺失工具。
+- `run_project_summary` 的 MAX_REQUESTS=5 包含所有工具决策与最终摘要请求。第五次请求可正常提交摘要；若仍提出工具调用，整批校验后报超限，不执行或复用任何一项工具、不发送第六次请求。
 
 ## 状态与缓存
 
 messages、successful_results 和累计 token 用量均为本次函数调用的局部状态，不跨任务保存。每次模型请求重新发送所需对话历史，不依赖服务端对话 ID 保存历史。
 
-成功缓存以解析后的 project_id 为键；因为只支持一个工具和一个参数，无需通用缓存系统。参数 JSON 的空格变化不影响缓存命中，参数值本身不做去空格或大小写归一化。函数成功返回后才写入缓存；工具失败立即终止，不缓存或重试。
+成功缓存键为 (工具名, 校验后参数的排序紧凑 JSON)，两个工具结果相互隔离。参数 JSON 的空格变化不影响缓存命中，参数值本身不做去空格或大小写归一化。函数成功返回后才写入缓存；工具失败立即终止，不缓存或重试。
 
-缓存命中避免再次执行本地函数，但仍追加 assistant 调用记录与 tool 结果，用当前调用的 id / tool_call_id 对应。缓存不会节省该轮模型请求，也不会跳过参数校验或请求次数计数。
+同批允许相同工具和参数、不同 ID；前项成功后，后项即可复用缓存。缓存命中避免再次执行本地函数，整批成功后仍追加 assistant 批调用记录与每项 tool 结果，用当前调用的 id / tool_call_id 对应。缓存不会节省该轮模型请求，也不会跳过参数校验或请求次数计数。
 
 ## 成功与失败边界
 
-stop 响应不能携带工具调用；没有成功项目数据时，即使摘要 JSON 结构合法也拒绝展示。已有成功数据后继续使用 parse_summary 校验 progress、blockers、next_steps 三个字符串数组，允许空数组，拒绝缺字段、额外字段和空白元素。结构正确不能保证事实正确。
+stop 响应不能携带工具调用；缺少该任务所需的任一目标项目成功结果时，即使摘要 JSON 结构合法也拒绝展示。所需数据齐全后继续使用 parse_summary 校验 progress、blockers、next_steps 三个字符串数组，允许空数组，拒绝缺字段、额外字段和空白元素。结构正确不能保证事实正确。
 
-非法或多个调用、工具失败、length 截断、非正常结束和超限均立即终止，无自动重试。每轮用量及累计值在校验调用与摘要前记录，后续失败仍保留已确认用量；无有效用量的请求记录 null，累计 complete=false，未知不得当作零计费。每次网络操作为 30 秒超时，没有流程总时限。main 将已处理的错误转为退出码 1，不输出密钥或原始错误响应。
+非法调用、空数组、超过两个调用、批内重复 ID、工具失败、length 截断、非正常结束和超限均立即终止，无自动重试。每轮用量及累计值在校验调用与摘要前记录，后续失败仍保留已确认用量；无有效用量的请求记录 null，累计 complete=false，未知不得当作零计费。每次网络操作为 30 秒超时，没有流程总时限。main 将已处理的错误转为退出码 1，不输出密钥或原始错误响应。
 
 当前没有 MCP、RAG、写操作、跨任务缓存或持久化对话。测试与真实调用记录见 [SETUP.md](SETUP.md)，重要取舍见 [DECISIONS.md](DECISIONS.md)。
+
+## 单轮批调用：顺序执行（D2）
+
+多个调用来自同一模型响应，不代表本地并发。Loop 在整批校验和请求上限检查通过后，使用普通 for 循环逐个处理；前一个返回才处理下一个，没有异步、线程或并发调度。
+
+全部成功后，只追加一条 role=assistant 消息，tool_calls 保留本批完整调用，再按顺序追加每个 role=tool 结果，各自绑定当前 ID。不会将同批拆成多个 assistant 消息；第二项可命中第一项刚写入的成功缓存。
+
+执行中失败立即停止，不执行后续项、不发送下一次请求，也不把部分消息发给模型；此前成功执行和缓存事件仍保留。只读查询没有写入要撤销，不回滚已完成查询，不缓存失败、不重试。整批校验是执行准入，不能保证执行时两项都成功。
+
+model_requests 按请求递增；一次响应有两个调用仍只算一次请求。tool_executions 按真正进入执行函数计数（失败的执行也算），cache_hits 按复用次数计数。第五轮若要求调用，整批连缓存也不处理；第五轮有效最终摘要可以成功。Registry、快照、目标范围和任务完成条件均保留。
+
+## 外部数据快照
+
+`PROJECTS_PATH` 按模块 __file__ 定位 `toy-agent/data/projects.json`，不依赖启动目录；每次 run_project_summary 在首次请求前读取并完整校验一次，两个工具共用该任务的快照。任务中途文件修改不影响已读取数据，下次任务重新读取；没有跨任务缓存或数据库层。
+
+JSON 顶层为非空项目数组，每项严格含 project_id、name、status、issues；前三项为非空字符串，项目 ID 唯一。issues 必须是数组，允许 []；每条严格含非空字符串 id、title、status、description，问题 ID 在项目内唯一，status 保留文本而不限定枚举。
+
+文件缺失、读取失败、UTF-8 / JSON 损坏或任何项目结构错误，在 data_loading 阶段停止，零模型请求、零工具执行、零已知用量且 complete=true；不会将损坏数据转成空列表。未知目标项目在实际工具执行时明确失败；越出目标项目的调用在 tool_validation 阶段拒绝，未执行工具。不输出解析器原始诊断或数据正文。意外本地工具异常也以安全错误保留已有记录并停止，无重试。
 
 ## 独立事实评估入口
 
@@ -47,9 +69,9 @@ stop 响应不能携带工具调用；没有成功项目数据时，即使摘要
 
 run_project_summary 返回标准库 dict，不打印；已处理的失败返回 status=failed、summary=null 和安全 error。成功返回 status=succeeded、已校验 summary、error=null。succeeded 仅表示执行及结构校验通过，不能证明事实保留、字段归属或表达关联正确；当前候选的质量限制保持不变。
 
-model_requests 在实际尝试请求前递增，包含网络失败的那次；tool_executions 在进入 get_project 前递增，包含工具失败，非法调用与第五轮拒绝不计入；cache_hits 仅计成功缓存复用。usage 的 prompt_tokens、completion_tokens、total_tokens 是累计已知值，complete 表示每次尝试的用量均有效；未发请求时零累计且 complete=true。消息异常但用量有效时仍保留用量；部分或非法用量整轮记 null，继续停止而不执行工具。
+model_requests 在实际尝试请求前递增，包含网络失败的那次；tool_executions 在进入注册项执行函数前递增，包含工具失败，非法调用与第五轮拒绝不计入；cache_hits 仅计成功缓存复用。usage 的 prompt_tokens、completion_tokens、total_tokens 是累计已知值，complete 表示每次尝试的用量均有效；未发请求时零累计且 complete=true。消息异常但用量有效时仍保留用量；部分或非法用量整轮记 null，继续停止而不执行工具。
 
-trace 按顺序保存 model_request（序号、结束原因、用量）、tool_execution（工具名、当前 ID、校验后参数、成功/失败）、cache_hit 和 failure（阶段、安全错误）。超限失败记录已校验调用的元数据但不产生执行或缓存事件；非法调用只记录校验失败，不持久化未经校验的参数。网络无响应仍有请求及失败事件。错误类别为 http_error、network_error 或失败阶段：configuration、request、response_validation、tool_validation、request_limit、tool_execution、summary_validation。
+trace 按顺序保存 model_request（序号、结束原因、用量、tool_call_count）、tool_execution（工具名、当前 ID、校验后参数、成功/失败）、cache_hit 和 failure（阶段、安全错误）。tool_call_count 为响应中数组长度；未提供调用时为 0，无法取得有效消息或调用数组时为 null。即使数量超限，也可记录安全的数组长度；不保存未校验的工具名称或参数。第五轮超限失败保留整批已校验元数据：单项保持 tool_name / call_id / parameters，双项保存在 failure.tool_calls 列表；不产生执行或缓存事件。非法调用只记录校验失败，不持久化未经校验的参数。网络无响应仍有请求及失败事件。错误类别为 http_error、network_error 或失败阶段：configuration、task_validation、data_loading、request、response_validation、tool_validation、request_limit、tool_execution、summary_validation。
 
 不保存密钥、请求头、原始错误响应、完整对话或内部推理；当前虚构参数可保存，将来接真实数据需另行设计脱敏。display_run_result 负责 CLI 展示；inspect_response、display_summary 等评估公共函数行为兼容。--output 用 x 模式在读取密钥及请求前预留位置，拒绝覆盖；执行失败结果也保存。保存不是事务操作，磁盘写入失败可能留下空文件或部分 JSON，CLI 返回非零，不自动删除或覆盖。
 

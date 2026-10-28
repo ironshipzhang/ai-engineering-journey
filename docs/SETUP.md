@@ -1,5 +1,38 @@
 # 最小开发环境：已完成
 
+## E1 资料准备与检查：2026-10-28
+
+独立入口 `toy-agent/prepare_corpus.py` 不读取模型密钥、不调用 API。源文件及目录在 `toy-agent/knowledge/`，运行产物使用已忽略的 `test-output/`。这是 prepared corpus，不是向量索引。实现与组件限制见 [E1 交接](tasks/e1-corpus-handoff.md)。
+
+从项目根目录执行。依赖已在本机安装；其他环境先按锁文件同步（可能联网下载普通 Python 包，不下载模型）：
+
+```sh
+.tools/bin/uv sync --project toy-agent --locked --cache-dir .cache/uv
+```
+
+本地命令（以下 user-001 为新的目录名，重复运行 prepare 时换新名，不删除旧构建）：
+
+```sh
+mkdir -p test-output/e1
+toy-agent/.venv/bin/python toy-agent/prepare_corpus.py prepare --output test-output/e1/user-001
+toy-agent/.venv/bin/python toy-agent/prepare_corpus.py check --output test-output/e1/user-001
+```
+
+产物为 `test-output/e1/user-001/corpus/chunks.json` 和 `manifest.json`。输出父目录须存在，输出目录须不存在，且不得位于知识资料目录内。`--knowledge` 可指向包含 catalog.json 的另一份虚构资料目录；默认按脚本路径定位。`--max-chars` 默认 1200，单位为 Unicode 码点而非 tokens；prepare 与 check 应使用同一参数。
+
+资料成员以 catalog.json 为准：新增文档需要登记，删除需要移除对应目录项；仍被引用的缺失文档会检查失败。目录原始字节也进入指纹，因此格式化目录也会提示重建。输入变化需用新目录手动全量准备，不自动覆盖旧构建。
+
+退出码：0 准备完成或输入匹配；2 资料/目录/处理配置变化，需重建；1 检查或准备失败（CLI 参数错误由 argparse 返回 2）。没有向量、检索或问答；输入匹配不等于内容正确。
+
+离线验证：
+
+```sh
+toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_prepare_corpus.py' -v
+toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
+```
+
+本轮 E1 17 项、完整回归 88 项通过。实跑 `test-output/e1-20261028/build-001`：3 份文档、15 个片段，prepare/check 均退出 0；改用 `--max-chars 1300` 检查退出 2；重复 prepare 退出 1；独立损坏副本检查退出 1。真实 API 和 E2 行为未验证。
+
 ## 验收标准
 
 1. Git 可运行，本目录是独立仓库。

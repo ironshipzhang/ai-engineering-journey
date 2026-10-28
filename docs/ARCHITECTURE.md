@@ -1,6 +1,6 @@
 # 当前系统：有界只读 Agent Loop
 
-入口为 `toy-agent/deepseek_summary.py`，仅使用 Python 标准库，无 Agent 框架或额外依赖。`hello.py` 独立用于检查 Python 环境。
+Agent 入口为 `toy-agent/deepseek_summary.py`，其执行路径仍仅使用 Python 标准库，无 Agent 框架。`hello.py` 独立用于检查 Python 环境。E1 的独立资料准备入口使用 markdown-it-py，未接入 Agent，见文末。
 
 ## 数据流
 
@@ -80,3 +80,19 @@ trace 按顺序保存 model_request（序号、结束原因、用量、tool_call
 两个 CLI 共用 deepseek_summary.read_config_api_key，使用 Python 3.12 tomllib。DEFAULT_CONFIG_PATH 从脚本 __file__ 定位根目录 config/local.toml；--config 的显式相对路径保持按工作目录解析。只读取 model.api_key，不改变地址、模型、限制、提示词或 Loop/轨迹。
 
 配置缺失、权限/编码/语法错误及字段无效均在联网前转为 SummaryError；不输出文件内容、密钥或 TOML 原始异常。Loop 在预留 --output 后读配置，失败仍保存 configuration 事件与零请求；评估入口读配置失败安全报错退出，不生成采集报告。配置为本地明文，/config/ 忽略规则不影响已跟踪文件。
+
+## E1：独立 prepared corpus（2026-10-28）
+
+`prepare_corpus.py` 不导入 Agent、不读取模型配置，只读取 `knowledge/catalog.json` 定义的当前资料集合。目录严格含 document_id、title、version、相对 Markdown path；ID/路径唯一，不允许越界或来源符号链接。未登记文件不属于资料集合；删除必须同步移除目录项，仍被引用但缺失的文档是读取失败。
+
+markdown-it-py 4.2.0 以 commonmark 解析标题的行映射。项目按顶层容器中的 h1–h6 分节，保留从本标题到下一个标题之前的原文（含空白、Markdown、代码和步骤）；标题前导内容也保留。section 保存祖先标题、级别与标题行号，但不复制祖先正文。片段上限默认 1200 个 Unicode 码点，包括标记与换行；重叠 0。长章节、长段落或代码块若使整节超限，明确失败，要求人工整理自包含章节，不自动截断/拆分。列表、引用和代码块内部的标题不成为边界。
+
+source 保存原始文档 SHA-256 和 1 起始两端包含的行区间；source_path 为目录相对路径；text 是原文切片，不是渲染或清洗结果。支持 UTF-8、LF/CRLF，拒绝空文档、NUL 与单独 CR。标题展示取自解析器 inline content，可包含内联 Markdown；不提供字节偏移、渲染 HTML 位置或语义完整性保证。跨章节引用仍可能需要 E2 上下文组织。
+
+manifest 标记 `e1_prepared_corpus`、格式版本 1，记录目录原始字节指纹、排序的文档元数据与内容指纹、组件/规则版本和实际参数、片段数量及 chunks.json 字节数/SHA-256。chunk_id 哈希包含配置、文档身份/版本、来源定位及文本；重复标题/正文由位置区分。build_id 校验除自身之外的清单字段；输入指纹包含资料与处理配置。无时间字段、embedding 字段或假向量，相同输入/配置生成相同字节产物。
+
+prepare 在输出父目录创建临时目录，写入并校验 chunks.json 和 manifest.json，再完整重读资料比对输入。变化则失败，不自动重试。完成后通过独占 mkdir 预留新的输出容器，将临时目录同文件系统 rename 为其中的 `corpus/`；消费者只有看到完整且校验通过的 `corpus/` 才能使用。已有输出容器（含空目录、文件、符号链接）拒绝覆盖；竞争者先创建目标时也不覆盖或清理对方。失败只清理本次临时目录及自身的空预留目录，无活动指针或通用锁。
+
+check 先校验清单、片段字节和数量完整性，再读取当前资料和配置；不匹配返回需重建。匹配时重新生成原文切片比对产物，核验来源和 ID。退出 0 表示输入匹配且产物完整；2 表示需重建；1 表示缺失、读取/解析/完整性或准备失败。完整性不等于防恶意篡改签名；check 对小规模资料重新解析，不承诺大规模性能。
+
+本地顺序操作约定下验证了发布前复查与目录可见性；没有输入文件锁，不能排除最后复查之后的外部修改或修改后恢复原值。没有 fsync 崩溃恢复保证，强制终止可能留下临时/空预留目录，check 不视其为成功。每次问答前调用检查、过期拒绝且无生成调用属于 E2，尚未集成。

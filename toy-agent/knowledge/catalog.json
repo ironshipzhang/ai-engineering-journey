@@ -1,0 +1,5 @@
+[
+  {"document_id": "release-policy", "title": "发布规范", "version": "1", "path": "release-policy.md"},
+  {"document_id": "migration-guide", "title": "数据库迁移手册", "version": "1", "path": "migration-guide.md"},
+  {"document_id": "post-release-checklist", "title": "发布后检查清单", "version": "1", "path": "post-release-checklist.md"}
+]

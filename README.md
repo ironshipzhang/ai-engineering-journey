@@ -2,6 +2,8 @@
 
 通过项目实践，在已有软件工程经验上积累 LLM Application / Agent Engineering 能力。
 
+计划完成后作为学习项目开源，保留各阶段进度、讨论交接、设计取舍和实验记录，展示从最小实现到验证与修正的过程。历史记录按发生时的状态阅读，最新实现以代码、测试及当前进度为准；仓库公开与许可证将在后续确定。
+
 ## 目标与范围
 
 - 目标：2027 年 2–4 月开始投递 AI Application Engineer / AI-oriented SDE 等岗位。
@@ -24,7 +26,9 @@ Toy Agent 已实现有界只读 Agent Loop：用户选择项目与 summary / iss
 
 任务 C 已完成：Loop 返回结构化运行结果与执行轨迹，CLI 可展示或保存 JSON。39 项离线测试通过，正常真实运行与 --output 保存均已验证；异常路径通过离线模拟验证。
 
-任务 D 与 D2 已通过主会话机制验收：每轮允许 1～2 个工具调用，整批校验后顺序执行，71 项离线测试通过；一次真实 issues 双工具链路成功。最新机制与验证见 [D2 交接](docs/tasks/two-tool-batches.md)。交接及模拟轨迹见 [任务 D 记录](docs/tasks/multi-project-registry.md)，完整路线见 [TOY_AGENT_ROADMAP.md](docs/TOY_AGENT_ROADMAP.md)。后续功能尚未实施。
+任务 D 与 D2 已通过主会话机制验收：每轮允许 1～2 个工具调用，整批校验后顺序执行，71 项离线测试通过；一次真实 issues 双工具链路成功。最新机制与验证见 [D2 交接](docs/tasks/two-tool-batches.md)。交接及模拟轨迹见 [任务 D 记录](docs/tasks/multi-project-registry.md)，完整路线见 [TOY_AGENT_ROADMAP.md](docs/TOY_AGENT_ROADMAP.md)。
+
+E1 已完成并通过主会话验收：三份虚构资料经 markdown-it-py 生成有原文定位的片段，独立 prepare/check 提供确定性全量构建、输入变化与完整性检查。完整离线测试 88 项通过，正常构建包含 15 个片段；它是 prepared corpus，尚不包含 embedding、检索或问答。运行方法及边界见 [E1 交接](docs/tasks/e1-corpus-handoff.md)。
 
 默认运行（会联网）：`toy-agent/.venv/bin/python toy-agent/deepseek_summary.py`，等价于 `--project-id xingqiao --task summary`；问题摘要可用 `--project-id yunfan --task issues`，仍支持 `--config` 和 `--output`。
 

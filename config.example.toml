@@ -1,3 +1,12 @@
 # Copy to config/local.toml and replace the placeholder locally.
 [model]
 api_key = "YOUR_API_KEY"
+[embedding]
+provider = "dashscope"
+model = "text-embedding-v4"
+api_key = "YOUR_EMBEDDING_API_KEY"
+
+# Fill from the same region/workspace as the embedding key; or pass --endpoint.
+# Full DashScope native HTTP endpoint, not an OpenAI-compatible base URL.
+endpoint = "https://YOUR_WORKSPACE_ID.cn-beijing.maas.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding"
+dimension = 1024

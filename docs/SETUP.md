@@ -374,3 +374,26 @@ trace 只保存请求、工具执行、缓存与失败的必要元数据，不�
 仅迁移阶段读取原真实密钥并写入本地明文配置，未显示密钥、未删除原文件；测试使用虚构密钥与临时配置，未调用模型。已检查 local.toml 被 /config/ 忽略且未被跟踪，权限 0600；示例仅包含 YOUR_API_KEY。任务 D 尚未开始。
 
 主会话复核：45 项离线测试全部通过；用户真实运行保存的 test-output/run-002.json 成功，两次请求、一次工具执行，累计 1582 tokens，用量完整且与分轮记录一致。正常配置读取及结果保存已真实验证，真实认证失败与异常配置仍仅离线验证。test-output/ 为本地运行产物，已被 Git 忽略，不影响 toy-agent/evals/ 历史评估记录。
+
+## E2a：百炼编码接入验证（2026-10-29）
+
+无需安装新依赖。`config/local.toml` 的 `[embedding]` 独立于 `[model]`，字段见根目录 `config.example.toml`：provider=dashscope、model=text-embedding-v4、api_key、完整原生 endpoint，dimension 默认 1024。真实配置不纳入 Git；不要把密钥放进命令参数。endpoint 可通过命令参数提供，不会修改本地配置。
+
+在仓库根目录运行离线回归：
+
+```bash
+toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py'
+```
+
+本轮 103 项通过（既有 88 + E2a 15）。以下是**会联网计费的手动验证命令**，仅供明确需要重跑时使用；本轮授权验证已完成，不需要再次执行。必须使用新的输出文件名，父目录已存在。
+
+```bash
+toy-agent/.venv/bin/python toy-agent/verify_embedding.py \
+  --prepared test-output/e1-20261028/build-001 \
+  --endpoint https://ws-kicad9ful35400g7.cn-beijing.maas.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding \
+  --output test-output/e2a-manual-new.json
+```
+
+入口自动先执行 E1 check，过期或损坏时不读取编码配置、不请求 API，也不自动 prepare。正常编码 10 + 5 个文档片段和 1 个问题；最大 3 次尝试，任一次失败即停、不重试。返回码 0 表示本次编码验证成功，1 表示失败；查看 JSON 的 error、requests、usage 和已保存 documents，可区分前置检查失败、请求失败及响应校验失败。未知用量不能按零计费解释。输出已存在时联网前拒绝覆盖。
+
+本轮结果 `test-output/e2a-20261029-001.json`：3 请求成功，15 文档向量 + 1 问题向量，1024 维；用量 1245 + 592 + 13 = 1850 tokens。北京同步公开费率估算 ¥0.000925，不是实际账单；未查询余额。失败路径仅离线模拟。结果格式及限制见 [E2a 交接](tasks/e2a-embedding-handoff.md)。

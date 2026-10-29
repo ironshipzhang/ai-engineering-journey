@@ -1,6 +1,6 @@
 # Toy Agent 完整学习路线
 
-更新时间：2026-10-28。此路线描述计划，不代表未来功能已实现。
+更新时间：2026-10-29。此路线描述计划，不代表未来功能已实现。
 
 目标：能解释并演示模型调用、工具执行、有界循环、任务状态、检索、MCP 和评估之间的关系。使用小规模虚构数据学习机制；业务内容质量优化留到有实际需求与数据的后续工程项目。
 
@@ -22,9 +22,9 @@
 2. **多项目输入与 Tool Registry（D / D2 已完成）**：JSON 每任务快照，默认 xingqiao / summary，支持 issues；get_project 与 list_project_issues 通过显式注册表关联 schema、校验和执行。按任务检查必要结果，缓存隔离工具与参数；单轮最多两个调用，整批校验后顺序执行。71 项离线测试通过，真实 summary 与一次 issues 双工具成功已记录。详见 [任务 D 交接](tasks/multi-project-registry.md) 与 [D2 交接](tasks/two-tool-batches.md)。
 3. **最小 RAG**：用数份虚构文档，完成切块、embedding、存储、检索、上下文注入与来源标识；对比命中与未命中。先明确 embedding 来源和成本，再实现；不要求向量数据库服务。
    - E1：已完成并通过主会话验收。三份虚构资料经 markdown-it-py 标题映射产生原文片段及来源，prepare/check 生成并检查确定性构建清单；手动全量准备、拒绝覆盖、输入复查和完整性校验已验证。主会话独立回归 88 项通过，实跑 15 个片段，两份独立重建与原构建一致；产物是 prepared corpus，不是真实向量索引。见 [E1 任务书](tasks/e1-corpus-preparation.md) 与 [实施交接](tasks/e1-corpus-handoff.md)。
-   - E2：embedding、检索与有来源的回答；建议先独立观察检索结果，再接生成回答，实际向量构建在此阶段完成。
+   - E2：embedding、检索与有来源的回答。先做 [E2a 远程编码接入](tasks/e2a-remote-embedding.md)：用户选择百炼 text-embedding-v4；E2a 已通过主会话复核。北京业务空间 endpoint 已确认，唯一一次真实验证成功：15 + 1 个 1024 维向量、3 请求、1850 tokens；103 项离线测试通过。见 [E2a 交接](tasks/e2a-embedding-handoff.md)。不部署本地模型；完整向量索引、检索和生成回答分后续任务推进。
    - E3：接入工具注册表，记录检索轨迹；区分检索执行成功与证据足够，完成条件和引用契约待设计。
-   - E1 以 2026-10-28 任务书为本次实施授权；embedding 模型与向量存储、检索等选型仍未定，不授权实施 E2/E3。前序讨论见 [E 讨论与待定项](tasks/rag-design-discussion.md) 及 [场景与生命周期](tasks/rag-scenario-and-lifecycle-discussion.md)；自动监听、增量更新和更完整的恢复机制留待求职项目按业务要求设计。
+   - E1 已完成，当前仅按 2026-10-29 任务书授权 E2a 编码验证；Toy 向量产物使用 JSON，后续求职项目使用 PostgreSQL，pgvector 是否采用另行确定；完整存储契约、检索/问答和 E3 尚未授权实施。前序讨论见 [E 讨论与待定项](tasks/rag-design-discussion.md) 及 [场景与生命周期](tasks/rag-scenario-and-lifecycle-discussion.md)；自动监听、增量更新和更完整的恢复机制留待求职项目按业务要求设计。
 4. **最小 MCP 接入**：将一个已理解的只读工具放入本地 MCP Server，由 Agent 的 MCP Client 调用；保持直接调用路径用于比较。SDK、传输和依赖在开工时核实。
 5. **失败策略与安全边界**：基于当前失败停止机制，补充分类、只读幂等请求的有界重试与等待策略；判断超时的不确定性。限流/余额不盲目重试，fallback 不伪造成功；用离线异常验证，不以真实故障练习。
 6. **端到端评估**：复用运行轨迹，在少量完整任务上检查正确取数、工具选择、停止、检索来源、格式与内容；对独立样例及必要重复采样控制预算。每新增机制先局部测试，不等到最后才验证。

@@ -32,7 +32,7 @@ INVALID_CONFIGS = (
 
 class ConfigTests(unittest.TestCase):
     def test_default_path_uses_script_root_even_from_other_working_directory(self):
-        expected = Path(loop.__file__).resolve().parent.parent / 'config' / 'local.toml'
+        expected = Path(__file__).resolve().parents[2] / 'config' / 'local.toml'
         self.assertEqual(loop.DEFAULT_CONFIG_PATH, expected)
         self.assertEqual(evaluation.DEFAULT_CONFIG_PATH, expected)
         previous = Path.cwd()

@@ -18,6 +18,8 @@
 
 当前状态见 [docs/PROGRESS.md](docs/PROGRESS.md)，环境与运行命令见 [docs/SETUP.md](docs/SETUP.md)。
 
+目录入口见 [PROJECT_STRUCTURE](docs/PROJECT_STRUCTURE.md)，具体任务见 [任务索引](docs/tasks/README.md)。源码在 `toy-agent/src/`，测试在 `toy-agent/tests/`；虚拟环境仍为 `toy-agent/.venv`。
+
 ## 当前成果
 
 Toy Agent 已实现有界只读 Agent Loop：用户选择项目与 summary / issues 任务，模型提出 get_project 或 list_project_issues 调用，Registry 校验并分发；任务内复用成功结果，最终校验必要取数与三字段结构化摘要，最多 5 次模型请求。虚构项目数据保存在 toy-agent/data/projects.json，每次任务读取一次快照。
@@ -26,17 +28,17 @@ Toy Agent 已实现有界只读 Agent Loop：用户选择项目与 summary / iss
 
 任务 C 已完成：Loop 返回结构化运行结果与执行轨迹，CLI 可展示或保存 JSON。39 项离线测试通过，正常真实运行与 --output 保存均已验证；异常路径通过离线模拟验证。
 
-任务 D 与 D2 已通过主会话机制验收：每轮允许 1～2 个工具调用，整批校验后顺序执行，71 项离线测试通过；一次真实 issues 双工具链路成功。最新机制与验证见 [D2 交接](docs/tasks/two-tool-batches.md)。交接及模拟轨迹见 [任务 D 记录](docs/tasks/multi-project-registry.md)，完整路线见 [TOY_AGENT_ROADMAP.md](docs/TOY_AGENT_ROADMAP.md)。
+任务 D 与 D2 已通过主会话机制验收：每轮允许 1～2 个工具调用，整批校验后顺序执行，71 项离线测试通过；一次真实 issues 双工具链路成功。最新机制与验证见 [D2 交接](docs/tasks/agent/two-tool-batches.md)。交接及模拟轨迹见 [任务 D 记录](docs/tasks/agent/multi-project-registry.md)，完整路线见 [TOY_AGENT_ROADMAP.md](docs/TOY_AGENT_ROADMAP.md)。
 
-E1 已完成并通过主会话验收：三份虚构资料经 markdown-it-py 生成有原文定位的片段，独立 prepare/check 提供确定性全量构建、输入变化与完整性检查。完整离线测试 88 项通过，正常构建包含 15 个片段；它是 prepared corpus，尚不包含 embedding、检索或问答。运行方法及边界见 [E1 交接](docs/tasks/e1-corpus-handoff.md)。
+E1 已完成并通过主会话验收：三份虚构资料经 markdown-it-py 生成有原文定位的片段，独立 prepare/check 提供确定性全量构建、输入变化与完整性检查。完整离线测试 88 项通过，正常构建包含 15 个片段；它是 prepared corpus，尚不包含 embedding、检索或问答。运行方法及边界见 [E1 交接](docs/tasks/rag/e1/e1-corpus-handoff.md)。
 
-E2a 远程编码接入已通过主会话复核：百炼 text-embedding-v4 独立客户端完成 15 个文档和 1 个问题的 1024 维编码验证；完整离线回归 103 项通过。当前 JSON 是编码验证记录，正式向量产物与检索、问答尚未实现。详见 [E2a 交接](docs/tasks/e2a-embedding-handoff.md)。Toy 全程只用 JSON 保存原文关联、向量及元数据，不引入数据库服务；PostgreSQL 与 pgvector 留到正式求职项目。
+E2a 远程编码接入已通过主会话复核：百炼 text-embedding-v4 独立客户端完成 15 个文档和 1 个问题的 1024 维编码验证；完整离线回归 103 项通过。当前 JSON 是编码验证记录，正式向量产物与检索、问答尚未实现。详见 [E2a 交接](docs/tasks/rag/e2a/e2a-embedding-handoff.md)。Toy 全程只用 JSON 保存原文关联、向量及元数据，不引入数据库服务；PostgreSQL 与 pgvector 留到正式求职项目。
 
-E2b JSON 向量产物与独立检索已通过主会话复核：15 个文档向量与 E1 原文/来源关联，检索时检查完整性、过期状态和编码兼容性，返回余弦 top-k 候选。完整离线回归 119 项通过；已有问题的离线演示已核对。新问题在线编码、生成回答及 Agent 检索工具尚未实现。详见 [E2b 交接](docs/tasks/e2b-json-retrieval-handoff.md)。
+E2b JSON 向量产物与独立检索已通过主会话复核：15 个文档向量与 E1 原文/来源关联，检索时检查完整性、过期状态和编码兼容性，返回余弦 top-k 候选。完整离线回归 119 项通过；已有问题的离线演示已核对。新问题在线编码、生成回答及 Agent 检索工具尚未实现。详见 [E2b 交接](docs/tasks/rag/e2b/e2b-json-retrieval-handoff.md)。
 
-默认运行（会联网）：`toy-agent/.venv/bin/python toy-agent/deepseek_summary.py`，等价于 `--project-id xingqiao --task summary`；问题摘要可用 `--project-id yunfan --task issues`，仍支持 `--config` 和 `--output`。
+默认运行（会联网）：`toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py`，等价于 `--project-id xingqiao --task summary`；问题摘要可用 `--project-id yunfan --task issues`，仍支持 `--config` 和 `--output`。
 
-任务 C 的已完成实现范围见 [结果与执行轨迹任务说明](docs/tasks/run-result-and-trace.md)。
+任务 C 的已完成实现范围见 [结果与执行轨迹任务说明](docs/tasks/agent/run-result-and-trace.md)。
 
 系统流程见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，评估记录与限制见 [docs/EVALUATION.md](docs/EVALUATION.md)，重要取舍见 [docs/DECISIONS.md](docs/DECISIONS.md)。
 

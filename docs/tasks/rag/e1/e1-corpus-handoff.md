@@ -52,7 +52,7 @@ E2 的已确认设计是由问答程序在每次检索之前自动接入检查�
 
 ## 两个本地产物目录与损坏示例
 
-本次 `test-output/e1-20261028/` 下的两个目录用途不同：
+本次 `test-output/rag/e1/20261028/` 下的两个目录用途不同：
 
 - `build-001/` 是正常构建，包含 3 份文档生成的 15 个片段。
 - `corrupt-copy/` 是专门复制并修改的故障验证样本，不是正常的第二版，也不是 prepare 日常必需的产物。只把副本中的 chunks.json 改成了 `[]` 加换行，保留原 manifest；原构建没有受影响。
@@ -62,7 +62,7 @@ E2 的已确认设计是由问答程序在每次检索之前自动接入检查�
 检测后程序停止并返回 1，不修复、不删除、不覆盖。实际使用中，可排查原因后从原始资料生成一个新构建；本次坏副本仅用于演示，无需修复。用户已讨论并理解该流程，本会话提供了以下手动命令；未收到用户终端输出，不能记作用户实跑验证：
 
 ```sh
-toy-agent/.venv/bin/python toy-agent/prepare_corpus.py check --output test-output/e1-20261028/corrupt-copy
+toy-agent/.venv/bin/python toy-agent/src/prepare_corpus.py check --output test-output/rag/e1/20261028/corrupt-copy
 echo $?
 ```
 
@@ -95,8 +95,8 @@ toy-agent/knowledge/catalog.json             文档身份、标题、版本、�
 toy-agent/knowledge/release-policy.md        发布规范，887 个汉字
 toy-agent/knowledge/migration-guide.md       迁移手册，901 个汉字
 toy-agent/knowledge/post-release-checklist.md 发布后检查，893 个汉字
-toy-agent/prepare_corpus.py                  独立 prepare/check
-toy-agent/test_prepare_corpus.py             17 项 E1 离线测试
+toy-agent/src/prepare_corpus.py                  独立 prepare/check
+toy-agent/tests/test_prepare_corpus.py             17 项 E1 离线测试
 <新输出目录>/corpus/chunks.json               片段原文及来源
 <新输出目录>/corpus/manifest.json             指纹、配置、数量、完整性记录
 ```
@@ -108,9 +108,9 @@ cd /Users/ironshipzhang/Documents/Codex/ai_engineer
 # 本机已安装；其他环境按锁文件同步，可能下载普通依赖。
 .tools/bin/uv sync --project toy-agent --locked --cache-dir .cache/uv
 mkdir -p test-output/e1
-toy-agent/.venv/bin/python toy-agent/prepare_corpus.py prepare --output test-output/e1/user-001
-toy-agent/.venv/bin/python toy-agent/prepare_corpus.py check --output test-output/e1/user-001
-toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
+toy-agent/.venv/bin/python toy-agent/src/prepare_corpus.py prepare --output test-output/rag/e1/user-001
+toy-agent/.venv/bin/python toy-agent/src/prepare_corpus.py check --output test-output/rag/e1/user-001
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py' -v
 ```
 
 默认资料目录按脚本定位；可用 `--knowledge` 指定另一个含 catalog.json 的虚构资料目录。prepare/check 支持相同的 `--max-chars`（默认 1200）。源文件、目录、脚本、测试和锁文件需版本控制；运行产物位于已忽略的 test-output/，未修改忽略规则。
@@ -137,7 +137,7 @@ sed -n '11,20p' toy-agent/knowledge/migration-guide.md
 | --- | --- |
 | 修改前回归 | 原有 71 项离线测试通过 |
 | E1 与完整回归 | 新增 17 项通过；完整 88 项通过，旧测试未修改 |
-| prepare 至 test-output/e1-20261028/build-001 | 退出 0，3 份文档、15 个片段，chunks.json 18692 字节 |
+| prepare 至 test-output/rag/e1/20261028/build-001 | 退出 0，3 份文档、15 个片段，chunks.json 18692 字节 |
 | check 同一构建 | 退出 0，输入匹配、产物完整 |
 | check 改用 --max-chars 1300 | 退出 2，需重建 |
 | prepare 再用已存在的 build-001 | 退出 1，拒绝覆盖，旧构建保留 |

@@ -20,17 +20,17 @@ E1 保存“文档如何变成片段”；E2a 保存“片段如何完成一次�
 
 ## 代码与产物
 
-- 新增 `toy-agent/json_retrieval.py`：build/check/search CLI；build、load_checked、search 为可调用接口，返回数据与 CLI 展示分离。search 接收内存产物、问题对象、编码元数据和 top-k，并在每次调用时核对当前 E1。
-- 调整 `toy-agent/dashscope_embedding.py`：仅将既有单向量维度/有限值/非零范数校验抽成 validate_vector，E2a 原有响应校验和 E2b 共同使用。无传输、配置或编码行为变更。
-- 新增 `toy-agent/test_json_retrieval.py`：16 项离线测试，不依赖个人 test-output；临时创建 E1、模拟 E2a，明确禁止配置读取和 API 调用。
+- 新增 `toy-agent/src/json_retrieval.py`：build/check/search CLI；build、load_checked、search 为可调用接口，返回数据与 CLI 展示分离。search 接收内存产物、问题对象、编码元数据和 top-k，并在每次调用时核对当前 E1。
+- 调整 `toy-agent/src/dashscope_embedding.py`：仅将既有单向量维度/有限值/非零范数校验抽成 validate_vector，E2a 原有响应校验和 E2b 共同使用。无传输、配置或编码行为变更。
+- 新增 `toy-agent/tests/test_json_retrieval.py`：16 项离线测试，不依赖个人 test-output；临时创建 E1、模拟 E2a，明确禁止配置读取和 API 调用。
 - 无新依赖，不修改 pyproject.toml/uv.lock。
 
 实际输出均在 Git 忽略目录：
 
 | 文件 | 内容 |
 | --- | --- |
-| `test-output/e2b-vectors-20261104-001.json` | 15 个 1024 维文档向量、E1 原文与来源、编码契约及完整性摘要 |
-| `test-output/e2b-top3-20261104-001.json` | 已有问题的 top-3 排名、余弦、原文、来源和检索配置 |
+| `test-output/rag/e2b/e2b-vectors-20261104-001.json` | 15 个 1024 维文档向量、E1 原文与来源、编码契约及完整性摘要 |
+| `test-output/rag/e2b/e2b-top3-20261104-001.json` | 已有问题的 top-3 排名、余弦、原文、来源和检索配置 |
 
 向量产物摘要为 `552457b9bc0b6610390f7ddb3b3d53966a9d6151c5855965f03bfd3a63ddfe00`。E1 build_id 仍为 `d6fe4d2da557d44234c820edd504de94d7f9195c6cb02ca595e0d2f565415912`。
 
@@ -73,22 +73,22 @@ SHA-256 是损坏检测，不是签名。E2a 记录本身无签名，无法证�
 在仓库根目录执行。新建输出名字不能已存在；以下 `manual-001` 是供用户执行的新名字，本次实际演示使用上文带日期路径。
 
 ```bash
-toy-agent/.venv/bin/python toy-agent/json_retrieval.py build \
-  --prepared test-output/e1-20261028/build-001 \
-  --record test-output/e2a-20261029-001.json \
-  --output test-output/e2b-vectors-manual-001.json
+toy-agent/.venv/bin/python toy-agent/src/json_retrieval.py build \
+  --prepared test-output/rag/e1/20261028/build-001 \
+  --record test-output/rag/e2a/e2a-20261029-001.json \
+  --output test-output/rag/e2b/e2b-vectors-manual-001.json
 
-toy-agent/.venv/bin/python toy-agent/json_retrieval.py check \
-  --prepared test-output/e1-20261028/build-001 \
-  --artifact test-output/e2b-vectors-manual-001.json
+toy-agent/.venv/bin/python toy-agent/src/json_retrieval.py check \
+  --prepared test-output/rag/e1/20261028/build-001 \
+  --artifact test-output/rag/e2b/e2b-vectors-manual-001.json
 
-toy-agent/.venv/bin/python toy-agent/json_retrieval.py search \
-  --prepared test-output/e1-20261028/build-001 \
-  --artifact test-output/e2b-vectors-manual-001.json \
-  --query-record test-output/e2a-20261029-001.json \
-  --top-k 3 --output test-output/e2b-top3-manual-001.json
+toy-agent/.venv/bin/python toy-agent/src/json_retrieval.py search \
+  --prepared test-output/rag/e1/20261028/build-001 \
+  --artifact test-output/rag/e2b/e2b-vectors-manual-001.json \
+  --query-record test-output/rag/e2a/e2a-20261029-001.json \
+  --top-k 3 --output test-output/rag/e2b/e2b-top3-manual-001.json
 
-toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py'
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py'
 ```
 
 search 可不带 --output，仅输出终端。check 不是 search 的手动前置步骤，search 自带检查。--knowledge/--max-chars 默认沿用 E1，须与当前构建一致。退出码：0 操作成功；2 E1 资料/切块配置已变，需要重建；1 其他失败，包括向量产物与 E1 build_id 不一致或编码不兼容。无自动重建、编码或继续用旧资料。
@@ -119,7 +119,7 @@ search 可不带 --output，仅输出终端。check 不是 search 的手动前�
 
 ## 修改列表与复核交接
 
-开工已有 `docs/PROGRESS.md` 修改和未跟踪的 `docs/tasks/e2b-json-retrieval.md`，保留原内容并标注状态演进。
+开工已有 `docs/PROGRESS.md` 修改和未跟踪的 `docs/tasks/rag/e2b/e2b-json-retrieval.md`，保留原内容并标注状态演进。
 
 本轮新增 json_retrieval.py、test_json_retrieval.py、本交接；修改 dashscope_embedding.py（仅共享校验抽取），更新 PROGRESS、SETUP、ARCHITECTURE、TOY_AGENT_ROADMAP、DECISIONS。未修改 E1 资料/代码、真实配置、依赖、Agent 协议或历史评估。运行产物被忽略，不提交到仓库。
 

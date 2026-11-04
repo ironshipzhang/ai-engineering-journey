@@ -4,7 +4,7 @@
 
 ## 开始方式与依赖选择
 
-先读 AGENTS.md、README.md、docs/PROGRESS.md、docs/TOY_AGENT_ROADMAP.md，以及 docs/tasks/rag-design-discussion.md 和 docs/tasks/rag-scenario-and-lifecycle-discussion.md。核对当前 Git 状态，保留已有文档改动。先简短说明方案再编码。
+先读 AGENTS.md、README.md、docs/PROGRESS.md、docs/TOY_AGENT_ROADMAP.md，以及 docs/tasks/rag/discussions/rag-design-discussion.md 和 docs/tasks/rag/discussions/rag-scenario-and-lifecycle-discussion.md。核对当前 Git 状态，保留已有文档改动。先简短说明方案再编码。
 
 允许复用成熟库处理 Markdown、切块及来源元数据。不以零依赖为目标，不重写通用 Markdown 解析器，也不默认引入完整 RAG/Agent 框架。比较至多两个适合当前任务的组件或拆分包，核实官方文档、维护、许可、Python 3.12/本机兼容、传递依赖及元数据限制。说明选择后，可在本任务范围内通过 uv 安装并更新 pyproject.toml、uv.lock；无需等待额外的普通选库确认。若需要模型下载、付费服务、改变 E2 选型或明显扩大范围，停止该扩展并交接。
 

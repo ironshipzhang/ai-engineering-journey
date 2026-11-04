@@ -12,7 +12,7 @@ from deepseek_summary import (
     inspect_response, read_config_api_key, request_completion,
 )
 
-CASES_PATH = Path(__file__).parent / 'evals' / 'project_summary_cases.json'
+CASES_PATH = Path(__file__).resolve().parent.parent / 'evals' / 'cases' / 'project_summary_cases.json'
 
 
 def load_cases(path: Path = CASES_PATH) -> list[dict]:

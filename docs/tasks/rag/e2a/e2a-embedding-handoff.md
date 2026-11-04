@@ -19,25 +19,25 @@ E1 原文/目录 + prepared corpus
 
 ## 文件与运行
 
-- `toy-agent/dashscope_embedding.py`：独立读取 embedding 配置，百炼原生同步 HTTP、响应/向量校验。
-- `toy-agent/verify_embedding.py`：E1 检查、预算、分批调用、顺序映射、部分结果及安全错误保存。
-- `toy-agent/test_embedding.py`：15 项离线行为测试，全部使用临时资料、假密钥和模拟响应。
+- `toy-agent/src/dashscope_embedding.py`：独立读取 embedding 配置，百炼原生同步 HTTP、响应/向量校验。
+- `toy-agent/src/verify_embedding.py`：E1 检查、预算、分批调用、顺序映射、部分结果及安全错误保存。
+- `toy-agent/tests/test_embedding.py`：15 项离线行为测试，全部使用临时资料、假密钥和模拟响应。
 - `config.example.toml`：保留用户新增 embedding 表，整理成无真实密钥的占位示例，补充 endpoint/dimension；未覆盖 local.toml。
-- `test-output/e2a-20261029-001.json`：已忽略的本次真实验证记录。
+- `test-output/rag/e2a/e2a-20261029-001.json`：已忽略的本次真实验证记录。
 
 在仓库根目录执行完整离线回归：
 
 ```bash
-toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py'
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py'
 ```
 
 以下命令会再次联网计费，供后续明确决定手动重跑时使用；**本轮验证已经执行，不需复核时再调用**。输出名必须未存在：
 
 ```bash
-toy-agent/.venv/bin/python toy-agent/verify_embedding.py \
-  --prepared test-output/e1-20261028/build-001 \
+toy-agent/.venv/bin/python toy-agent/src/verify_embedding.py \
+  --prepared test-output/rag/e1/20261028/build-001 \
   --endpoint https://ws-kicad9ful35400g7.cn-beijing.maas.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding \
-  --output test-output/e2a-manual-new.json
+  --output test-output/rag/e2a/e2a-manual-new.json
 ```
 
 可通过 `--config` 指定其他本地 TOML。默认使用 config/local.toml，默认 1024 维；endpoint 命令参数覆盖配置值但不写回文件。用户确认华北 2（北京）业务空间地址后才发请求，没有轮流探测域名。
@@ -96,7 +96,7 @@ JSON 的 documents 每项保留 chunk_id、document_id、source_path、source、
 
 结论：E2a 验收通过，未发现阻碍当前任务验收的实现问题。主会话独立运行完整离线回归，103 项通过；另用模拟响应检查 30 片段时只编码前 20 片段，按 10+10+1 分批，仍不超过 3 次请求预算。未读取真实密钥、未重复真实 API 调用。
 
-逐项核对已有 test-output/e2a-20261029-001.json：15 个文档的 chunk_id、document_id、来源和全局输入行均与 E1 产物一致；16 个向量均为有限非零的 1024 维，记录范数与重算一致；3 次成功请求的 1245+592+13 tokens 合计 1850，用量完整。该文件能证明保存的接入验证结果，不能证明检索或回答质量；费率估算仍不是实际账单。
+逐项核对已有 test-output/rag/e2a/e2a-20261029-001.json：15 个文档的 chunk_id、document_id、来源和全局输入行均与 E1 产物一致；16 个向量均为有限非零的 1024 维，记录范数与重算一致；3 次成功请求的 1245+592+13 tokens 合计 1850，用量完整。该文件能证明保存的接入验证结果，不能证明检索或回答质量；费率估算仍不是实际账单。
 
 配置/endpoint 校验、禁重定向、无重试、失败即停、输出独占预留、整批索引与向量校验，以及部分成功结果和已知/未知用量分开记录，符合本阶段边界。磁盘失败/强制终止恢复、跨网络过程的资料锁和正式索引契约仍未实现，限制已明确记录。
 

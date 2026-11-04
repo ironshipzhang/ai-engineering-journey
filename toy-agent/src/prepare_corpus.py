@@ -15,7 +15,7 @@ import tempfile
 from markdown_it import MarkdownIt
 
 
-DEFAULT_KNOWLEDGE = Path(__file__).resolve().parent / "knowledge"
+DEFAULT_KNOWLEDGE = Path(__file__).resolve().parent.parent / "knowledge"
 FORMAT_VERSION = 1
 DEFAULT_MAX_CHARS = 1200
 ARTIFACT_TYPE = "e1_prepared_corpus"

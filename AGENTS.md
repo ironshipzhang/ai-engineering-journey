@@ -13,6 +13,7 @@
 - 选库前核实官方文档、维护情况、许可证、Python/设备兼容性及依赖成本，优先满足当前任务的独立组件或拆分包；使用框架组件不要求引入整套框架。说明复用能力、来源元数据与行为限制，依赖及锁文件纳入项目管理。
 - 业务契约仍由项目明确：来源追踪、指纹与版本兼容、过期处理、失败行为和验收标准不能直接由库默认行为代替。围绕项目实际使用的行为验证，不测试第三方库的全部内部实现。
 - 新会话先阅读本文件、README.md、docs/PROGRESS.md 和当前任务相关代码与测试。
+- 文件归档遵循 docs/PROJECT_STRUCTURE.md；源码放 toy-agent/src，测试放 toy-agent/tests，任务书及交接按 docs/tasks 中阶段归档，本地产物按 test-output 中阶段归档。完整离线回归从仓库根目录执行：`PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py'`。
 - 当前实现状态以代码和验证结果为准；判断正确性时仍需对照需求与验收标准。
 - 初期会话顺序工作，同一时间只让一个会话修改本地工作区。并行开发时再采用 worktree。
 - 按改动运行必要验证，如实记录未验证和受阻项。不编造完成状态。

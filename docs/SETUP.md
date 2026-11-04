@@ -1,8 +1,24 @@
 # 最小开发环境：已完成
 
+## 当前目录与命令：2026-11-04 整理
+
+源码位于 `toy-agent/src/`，离线测试位于 `toy-agent/tests/`；任务按阶段放在 `docs/tasks/agent/` 与 `docs/tasks/rag/`，本地产物对应放在 `test-output/agent/` 与 `test-output/rag/`。完整说明及迁移约定见 [项目目录](PROJECT_STRUCTURE.md)，任务入口见 [任务索引](tasks/README.md)。以下历史章节保留当时结论，路径统一更新为当前位置。
+
+从仓库根目录运行完整离线测试：
+
+```bash
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py'
+```
+
+按需准备本地输出父目录（不调用 API，也不创建构建结果）：
+
+```bash
+mkdir -p test-output/agent/{c,d,d2} test-output/rag/{e1,e2a,e2b,e2c}
+```
+
 ## E1 资料准备与检查：2026-10-28
 
-独立入口 `toy-agent/prepare_corpus.py` 不读取模型密钥、不调用 API。源文件及目录在 `toy-agent/knowledge/`，运行产物使用已忽略的 `test-output/`。这是 prepared corpus，不是向量索引。实现与组件限制见 [E1 交接](tasks/e1-corpus-handoff.md)。
+独立入口 `toy-agent/src/prepare_corpus.py` 不读取模型密钥、不调用 API。源文件及目录在 `toy-agent/knowledge/`，运行产物使用已忽略的 `test-output/`。这是 prepared corpus，不是向量索引。实现与组件限制见 [E1 交接](tasks/rag/e1/e1-corpus-handoff.md)。
 
 从项目根目录执行。依赖已在本机安装；其他环境先按锁文件同步（可能联网下载普通 Python 包，不下载模型）：
 
@@ -13,12 +29,12 @@
 本地命令（以下 user-001 为新的目录名，重复运行 prepare 时换新名，不删除旧构建）：
 
 ```sh
-mkdir -p test-output/e1
-toy-agent/.venv/bin/python toy-agent/prepare_corpus.py prepare --output test-output/e1/user-001
-toy-agent/.venv/bin/python toy-agent/prepare_corpus.py check --output test-output/e1/user-001
+mkdir -p test-output/rag/e1
+toy-agent/.venv/bin/python toy-agent/src/prepare_corpus.py prepare --output test-output/rag/e1/user-001
+toy-agent/.venv/bin/python toy-agent/src/prepare_corpus.py check --output test-output/rag/e1/user-001
 ```
 
-产物为 `test-output/e1/user-001/corpus/chunks.json` 和 `manifest.json`。输出父目录须存在，输出目录须不存在，且不得位于知识资料目录内。`--knowledge` 可指向包含 catalog.json 的另一份虚构资料目录；默认按脚本路径定位。`--max-chars` 默认 1200，单位为 Unicode 码点而非 tokens；prepare 与 check 应使用同一参数。
+产物为 `test-output/rag/e1/user-001/corpus/chunks.json` 和 `manifest.json`。输出父目录须存在，输出目录须不存在，且不得位于知识资料目录内。`--knowledge` 可指向包含 catalog.json 的另一份虚构资料目录；默认按脚本路径定位。`--max-chars` 默认 1200，单位为 Unicode 码点而非 tokens；prepare 与 check 应使用同一参数。
 
 资料成员以 catalog.json 为准：新增文档需要登记，删除需要移除对应目录项；仍被引用的缺失文档会检查失败。目录原始字节也进入指纹，因此格式化目录也会提示重建。输入变化需用新目录手动全量准备，不自动覆盖旧构建。
 
@@ -27,11 +43,11 @@ toy-agent/.venv/bin/python toy-agent/prepare_corpus.py check --output test-outpu
 离线验证：
 
 ```sh
-toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_prepare_corpus.py' -v
-toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_prepare_corpus.py' -v
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py' -v
 ```
 
-本轮 E1 17 项、完整回归 88 项通过。实跑 `test-output/e1-20261028/build-001`：3 份文档、15 个片段，prepare/check 均退出 0；改用 `--max-chars 1300` 检查退出 2；重复 prepare 退出 1；独立损坏副本检查退出 1。真实 API 和 E2 行为未验证。
+本轮 E1 17 项、完整回归 88 项通过。实跑 `test-output/rag/e1/20261028/build-001`：3 份文档、15 个片段，prepare/check 均退出 0；改用 `--max-chars 1300` 检查退出 2；重复 prepare 退出 1；独立损坏副本检查退出 1。真实 API 和 E2 行为未验证。
 
 ## 验收标准
 
@@ -67,7 +83,7 @@ toy-agent/.venv/ 是项目虚拟环境，toy-agent/uv.lock 记录依赖解析结
 
 ```sh
 cd /Users/ironshipzhang/Documents/Codex/ai_engineer
-env UV_CACHE_DIR="$PWD/.cache/uv" UV_PYTHON_INSTALL_DIR="$PWD/.tools/python" .tools/bin/uv run --project toy-agent toy-agent/hello.py
+env UV_CACHE_DIR="$PWD/.cache/uv" UV_PYTHON_INSTALL_DIR="$PWD/.tools/python" .tools/bin/uv run --project toy-agent toy-agent/src/hello.py
 ```
 
 2026-10-02 实际输出：
@@ -97,7 +113,7 @@ SSH 认证成功，首次推送已完成，main 跟踪 origin/main。
 - 已安装 Microsoft Python 扩展，以及自动安装的 Pylance、debugpy、Python Environments。
 - 打开整个 ai_engineer 文件夹；.vscode/settings.json 默认解释器指向 toy-agent/.venv。
 - 如需手动选择，使用 Cmd+Shift+P → Python: Select Interpreter，选择 toy-agent/.venv/bin/python。
-- 打开 toy-agent/hello.py，使用 Python: Run Python File in Terminal；或在项目根目录终端执行 toy-agent/.venv/bin/python toy-agent/hello.py。
+- 打开 toy-agent/src/hello.py，使用 Python: Run Python File in Terminal；或在项目根目录终端执行 toy-agent/.venv/bin/python toy-agent/src/hello.py。
 - 若想在终端使用 code 命令，使用 Cmd+Shift+P → Shell Command: Install 'code' command in PATH，然后重开终端。目前未修改系统 PATH。
 
 用户已在 VS Code 实际运行 hello.py，输出验证虚拟环境已启用。
@@ -148,13 +164,13 @@ config/local.toml 是本地明文文件；/config/ 被 Git 忽略，config.examp
 运行当前工具调用与摘要流程（会联网）：
 
 ```sh
-toy-agent/.venv/bin/python toy-agent/deepseek_summary.py
+toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py
 ```
 
 脚本使用最多 5 次模型请求的简单 Agent Loop。已移除 --key-file；可用 --config 指定其他 TOML 路径。默认路径按脚本位置定位仓库根目录，不依赖启动目录；显式相对路径按启动时工作目录解析。例如：
 
 ```sh
-toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --config ./config/local.toml --output test-output/run-002.json
+toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py --config ./config/local.toml --output test-output/agent/c/run-002.json
 ```
 
 输出文件名必须尚未存在。evaluate_summary.py 同样支持 --config；不传时使用相同默认配置。
@@ -173,7 +189,7 @@ toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --config ./config/local
 离线验证（不读取密钥、不调用模型）：
 
 ```sh
-toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py' -v
 ```
 
 历史记录（工具调用实现前）：2026-10-10，9 项测试通过；真实结构化调用输入 215、输出 67、总计 282 tokens，stop 正常结束。
@@ -181,7 +197,7 @@ toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
 缺少配置的验证命令（预期退出码 1）：
 
 ```sh
-toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --config /private/tmp/nonexistent-agent-config.toml
+toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py --config /private/tmp/nonexistent-agent-config.toml
 ```
 
 2026-10-02 首次真实调用：输入 99、输出 54、总计 153 tokens，结束原因 `stop`。按缓存全部未命中的峰值费率估算上限约 $0.0000945；实际费用以平台账单为准。
@@ -197,8 +213,8 @@ toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --config /private/tmp/n
 默认命令等价于 `--project-id xingqiao --task summary`，保持已有运行方式。新命令示例（会联网，本轮未执行）：
 
 ```sh
-toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --project-id yunfan --task summary
-toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --project-id xingqiao --task issues --output test-output/issues-new.json
+toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py --project-id yunfan --task summary
+toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py --project-id xingqiao --task issues --output test-output/agent/d/issues-new.json
 ```
 
 summary 查询项目概况；issues 结合概况和问题记录生成同样的三字段摘要。模型决定调用顺序，程序在最终回答时检查成功结果是否齐全；不自动补发调用。--task 只接受 summary / issues；--project-id 必须非空，工具不得查询其他项目。两个任务均提供两个只读工具。
@@ -209,7 +225,7 @@ summary 查询项目概况；issues 结合概况和问题记录生成同样的�
 
 空 issues 是正常成功结果；未知项目在工具执行时失败；缺失、损坏或结构错误的文件在首次模型请求前失败，均不伪装为空问题列表。整个文件一次完整校验，其中任何坏记录都会使任务失败。
 
-60 项离线测试通过，保留原 45 项核心断言并新增 15 项；不读取真实配置、不调用模型。模拟结果与轨迹见 [任务 D 交接](tasks/multi-project-registry.md)，本地完整 JSON 位于已忽略的 test-output/task-d-*-simulated.json。摘要与用量均为预设响应，仅验证程序控制，不能证明真实模型工具选择或内容质量。
+60 项离线测试通过，保留原 45 项核心断言并新增 15 项；不读取真实配置、不调用模型。模拟结果与轨迹见 [任务 D 交接](tasks/agent/multi-project-registry.md)，本地完整 JSON 位于已忽略的 test-output/agent/d/task-d-*-simulated.json。摘要与用量均为预设响应，仅验证程序控制，不能证明真实模型工具选择或内容质量。
 
 ## D2：单轮最多两个工具调用（2026-10-12）
 
@@ -219,29 +235,29 @@ summary 查询项目概况；issues 结合概况和问题记录生成同样的�
 
 ```sh
 # 完整回归，不读取真实密钥或联网
-toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py' -v
 
 # 只检查 D2 批次场景，共 11 项
-toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_tool_batches.py' -v
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_tool_batches.py' -v
 ```
 
 手动测试命令（会调用真实模型，不强制模型必须同轮调用两个工具）：
 
 ```sh
 # 默认 summary 输出到控制台
-toy-agent/.venv/bin/python toy-agent/deepseek_summary.py
+toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py
 
 # issues 输出到控制台
-toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --project-id xingqiao --task issues
+toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py --project-id xingqiao --task issues
 
 # 同时输出控制台和保存 JSON，父目录须存在，文件名须尚不存在
 mkdir -p test-output
-toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --project-id xingqiao --task issues --output test-output/d2-issues-user-001.json
+toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py --project-id xingqiao --task issues --output test-output/agent/d2/d2-issues-user-001.json
 ```
 
---output 不静默覆盖；重复手动测试需换新文件名。本轮唯一一次真实任务已保存为 `test-output/d2-issues-001.json`：第 1 轮提出 2 个调用，按 get_project → list_project_issues 顺序执行成功；第 2 轮 stop、0 个调用，最终 succeeded。2 次模型请求、2 次执行、0 次缓存；第 1 轮输入 775 / 输出 75 / 总计 850，第 2 轮输入 1078 / 输出 96 / 总计 1174；累计输入 1853 / 输出 171 / 总计 2024 tokens，complete=true。JSON 已核对与终端一致，不保存认证信息。
+--output 不静默覆盖；重复手动测试需换新文件名。本轮唯一一次真实任务已保存为 `test-output/agent/d2/d2-issues-001.json`：第 1 轮提出 2 个调用，按 get_project → list_project_issues 顺序执行成功；第 2 轮 stop、0 个调用，最终 succeeded。2 次模型请求、2 次执行、0 次缓存；第 1 轮输入 775 / 输出 75 / 总计 850，第 2 轮输入 1078 / 输出 96 / 总计 1174；累计输入 1853 / 输出 171 / 总计 2024 tokens，complete=true。JSON 已核对与终端一致，不保存认证信息。
 
-本轮没有重试或第二次真实任务。仅证明这一次真实 issues 成功，不能保证后续工具选择或内容质量；云帆空问题列表、反向顺序及异常批次仅离线验证。详情见 [D2 交接](tasks/two-tool-batches.md)。
+本轮没有重试或第二次真实任务。仅证明这一次真实 issues 成功，不能保证后续工具选择或内容质量；云帆空问题列表、反向顺序及异常批次仅离线验证。详情见 [D2 交接](tasks/agent/two-tool-batches.md)。
 
 ## 历史验证：固定一次只读工具调用（2026-10-10）
 
@@ -274,21 +290,21 @@ toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --project-id xingqiao -
 
 ## 小型事实质量评估
 
-新增独立评估入口 `toy-agent/evaluate_summary.py`，无新依赖；使用本地 TOML 配置，以 6 次模型请求采集摘要并保存新 JSON 文件。具体命令、首轮用量与复核标准见 [EVALUATION.md](EVALUATION.md)。原 Agent Loop 的运行命令保持不变。
+新增独立评估入口 `toy-agent/src/evaluate_summary.py`，无新依赖；使用本地 TOML 配置，以 6 次模型请求采集摘要并保存新 JSON 文件。具体命令、首轮用量与复核标准见 [EVALUATION.md](EVALUATION.md)。原 Agent Loop 的运行命令保持不变。
 
 首次六条评估阶段的离线验证共 30 项全部通过。真实评估 6 条结构全部通过、共 1392 tokens；事实质量由单独初评记录，不能由测试通过或脚本退出码判断。
 
 ## 指定评估集：2026-10-11
 
-Evaluate 新增可选 --cases 参数；省略时仍使用 toy-agent/evals/project_summary_cases.json 的原六条样例，无新依赖。31 项离线测试通过，运行 Loop 的命令不变。
+Evaluate 新增可选 --cases 参数；省略时仍使用 toy-agent/evals/cases/project_summary_cases.json 的原六条样例，无新依赖。31 项离线测试通过，运行 Loop 的命令不变。
 
 例如运行包含原六条与新增两条的组合集（会产生 8 次摘要请求费用，输出文件须不存在）：
 
 ```sh
-toy-agent/.venv/bin/python toy-agent/evaluate_summary.py --cases toy-agent/evals/comparison_cases_20261011.json --output /private/tmp/project-summary-comparison-new.json
+toy-agent/.venv/bin/python toy-agent/src/evaluate_summary.py --cases toy-agent/evals/cases/comparison_cases_20261011.json --output /private/tmp/project-summary-comparison-new.json
 ```
 
-仅采集新增两条时，--cases 指向 toy-agent/evals/transfer_cases_20261011.json。脚本始终使用当前代码的共享 SUMMARY_PROMPT，没有历史提示词选择开关；本轮旧提示词的两条结果是在改词前采集，不能通过当前命令直接重现旧提示词。
+仅采集新增两条时，--cases 指向 toy-agent/evals/cases/transfer_cases_20261011.json。脚本始终使用当前代码的共享 SUMMARY_PROMPT，没有历史提示词选择开关；本轮旧提示词的两条结果是在改词前采集，不能通过当前命令直接重现旧提示词。
 
 本轮 10 次真实请求共 3477 tokens；逐条对照、退步与限制见 [EVALUATION.md](EVALUATION.md)，本次不再继续调用。
 
@@ -297,7 +313,7 @@ toy-agent/.venv/bin/python toy-agent/evaluate_summary.py --cases toy-agent/evals
 默认命令无需密钥参数，使用本地 TOML 配置；成功退出 0，执行或结构校验失败退出 1。可选保存完整结果（以下命令会联网，本轮未执行）：
 
 ```sh
-toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --output /private/tmp/toy-agent-run-new.json
+toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py --output /private/tmp/toy-agent-run-new.json
 ```
 
 --output 目标须不存在，父目录须存在且可写；程序在读取密钥和请求前独占创建，失败运行也保存 JSON。已有文件或无效路径会在请求前退出；写入、刷新或关闭失败同样退出 1。写入并非事务操作，异常时可能留下空文件或部分 JSON，需要自行检查，不自动覆盖。
@@ -373,7 +389,7 @@ trace 只保存请求、工具执行、缓存与失败的必要元数据，不�
 
 仅迁移阶段读取原真实密钥并写入本地明文配置，未显示密钥、未删除原文件；测试使用虚构密钥与临时配置，未调用模型。已检查 local.toml 被 /config/ 忽略且未被跟踪，权限 0600；示例仅包含 YOUR_API_KEY。任务 D 尚未开始。
 
-主会话复核：45 项离线测试全部通过；用户真实运行保存的 test-output/run-002.json 成功，两次请求、一次工具执行，累计 1582 tokens，用量完整且与分轮记录一致。正常配置读取及结果保存已真实验证，真实认证失败与异常配置仍仅离线验证。test-output/ 为本地运行产物，已被 Git 忽略，不影响 toy-agent/evals/ 历史评估记录。
+主会话复核：45 项离线测试全部通过；用户真实运行保存的 test-output/agent/c/run-002.json 成功，两次请求、一次工具执行，累计 1582 tokens，用量完整且与分轮记录一致。正常配置读取及结果保存已真实验证，真实认证失败与异常配置仍仅离线验证。test-output/ 为本地运行产物，已被 Git 忽略，不影响 toy-agent/evals/ 历史评估记录。
 
 ## E2a：百炼编码接入验证（2026-10-29）
 
@@ -382,21 +398,21 @@ trace 只保存请求、工具执行、缓存与失败的必要元数据，不�
 在仓库根目录运行离线回归：
 
 ```bash
-toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py'
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py'
 ```
 
 本轮 103 项通过（既有 88 + E2a 15）。以下是**会联网计费的手动验证命令**，仅供明确需要重跑时使用；本轮授权验证已完成，不需要再次执行。必须使用新的输出文件名，父目录已存在。
 
 ```bash
-toy-agent/.venv/bin/python toy-agent/verify_embedding.py \
-  --prepared test-output/e1-20261028/build-001 \
+toy-agent/.venv/bin/python toy-agent/src/verify_embedding.py \
+  --prepared test-output/rag/e1/20261028/build-001 \
   --endpoint https://ws-kicad9ful35400g7.cn-beijing.maas.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding \
-  --output test-output/e2a-manual-new.json
+  --output test-output/rag/e2a/e2a-manual-new.json
 ```
 
 入口自动先执行 E1 check，过期或损坏时不读取编码配置、不请求 API，也不自动 prepare。正常编码 10 + 5 个文档片段和 1 个问题；最大 3 次尝试，任一次失败即停、不重试。返回码 0 表示本次编码验证成功，1 表示失败；查看 JSON 的 error、requests、usage 和已保存 documents，可区分前置检查失败、请求失败及响应校验失败。未知用量不能按零计费解释。输出已存在时联网前拒绝覆盖。
 
-本轮结果 `test-output/e2a-20261029-001.json`：3 请求成功，15 文档向量 + 1 问题向量，1024 维；用量 1245 + 592 + 13 = 1850 tokens。北京同步公开费率估算 ¥0.000925，不是实际账单；未查询余额。失败路径仅离线模拟。结果格式及限制见 [E2a 交接](tasks/e2a-embedding-handoff.md)。
+本轮结果 `test-output/rag/e2a/e2a-20261029-001.json`：3 请求成功，15 文档向量 + 1 问题向量，1024 维；用量 1245 + 592 + 13 = 1850 tokens。北京同步公开费率估算 ¥0.000925，不是实际账单；未查询余额。失败路径仅离线模拟。结果格式及限制见 [E2a 交接](tasks/rag/e2a/e2a-embedding-handoff.md)。
 
 ## E2b：JSON 向量产物与独立检索（2026-11-04）
 
@@ -404,27 +420,27 @@ toy-agent/.venv/bin/python toy-agent/verify_embedding.py \
 
 ```bash
 # 手动导入全量文档向量，并结合 E1 原文构建新产物。
-toy-agent/.venv/bin/python toy-agent/json_retrieval.py build \
-  --prepared test-output/e1-20261028/build-001 \
-  --record test-output/e2a-20261029-001.json \
-  --output test-output/e2b-vectors-manual-001.json
+toy-agent/.venv/bin/python toy-agent/src/json_retrieval.py build \
+  --prepared test-output/rag/e1/20261028/build-001 \
+  --record test-output/rag/e2a/e2a-20261029-001.json \
+  --output test-output/rag/e2b/e2b-vectors-manual-001.json
 
 # 独立检查原文、来源、完整性和当前 E1 构建关联。
-toy-agent/.venv/bin/python toy-agent/json_retrieval.py check \
-  --prepared test-output/e1-20261028/build-001 \
-  --artifact test-output/e2b-vectors-manual-001.json
+toy-agent/.venv/bin/python toy-agent/src/json_retrieval.py check \
+  --prepared test-output/rag/e1/20261028/build-001 \
+  --artifact test-output/rag/e2b/e2b-vectors-manual-001.json
 
 # 复用记录中那个问题的向量；没有任意问题文本覆盖参数。
-toy-agent/.venv/bin/python toy-agent/json_retrieval.py search \
-  --prepared test-output/e1-20261028/build-001 \
-  --artifact test-output/e2b-vectors-manual-001.json \
-  --query-record test-output/e2a-20261029-001.json \
-  --top-k 3 --output test-output/e2b-top3-manual-001.json
+toy-agent/.venv/bin/python toy-agent/src/json_retrieval.py search \
+  --prepared test-output/rag/e1/20261028/build-001 \
+  --artifact test-output/rag/e2b/e2b-vectors-manual-001.json \
+  --query-record test-output/rag/e2a/e2a-20261029-001.json \
+  --top-k 3 --output test-output/rag/e2b/e2b-top3-manual-001.json
 
 # 完整离线回归。
-toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py'
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py'
 ```
 
 三个操作均可指定 `--knowledge` 和 `--max-chars`，默认沿用 E1（1200 字符）。search 自动检查 E1 与向量产物，不依赖用户先运行 check；`--output` 可省略，只展示终端结果。退出 0 表示操作成功，2 表示 E1 资料/处理配置过期，1 表示其他失败（包括构建关联、编码不兼容、损坏、缺失或覆盖拒绝）。不自动重建。
 
-本轮 119 项测试通过（103 + 16）。实际产物：`test-output/e2b-vectors-20261104-001.json`（15 个文档向量）与 `test-output/e2b-top3-20261104-001.json`。已有问题“数据库迁移失败后，重跑前需要检查什么？”第一名为迁移手册第 11–20 行，cosine≈0.84009560。分数不是正确率，其他问题尚未做真实语义验证。格式、兼容策略和完整观察见 [E2b 交接](tasks/e2b-json-retrieval-handoff.md)。
+本轮 119 项测试通过（103 + 16）。实际产物：`test-output/rag/e2b/e2b-vectors-20261104-001.json`（15 个文档向量）与 `test-output/rag/e2b/e2b-top3-20261104-001.json`。已有问题“数据库迁移失败后，重跑前需要检查什么？”第一名为迁移手册第 11–20 行，cosine≈0.84009560。分数不是正确率，其他问题尚未做真实语义验证。格式、兼容策略和完整观察见 [E2b 交接](tasks/rag/e2b/e2b-json-retrieval-handoff.md)。

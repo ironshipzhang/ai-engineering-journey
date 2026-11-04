@@ -19,14 +19,14 @@
 ## 后续顺序
 
 1. **任务状态、结果与执行轨迹（已完成）**：返回成功/失败、摘要、已知用量、请求次数和工具事件；失败仍保留已有记录。39 项离线测试通过，正常真实运行与 JSON 保存验证完成。
-2. **多项目输入与 Tool Registry（D / D2 已完成）**：JSON 每任务快照，默认 xingqiao / summary，支持 issues；get_project 与 list_project_issues 通过显式注册表关联 schema、校验和执行。按任务检查必要结果，缓存隔离工具与参数；单轮最多两个调用，整批校验后顺序执行。71 项离线测试通过，真实 summary 与一次 issues 双工具成功已记录。详见 [任务 D 交接](tasks/multi-project-registry.md) 与 [D2 交接](tasks/two-tool-batches.md)。
+2. **多项目输入与 Tool Registry（D / D2 已完成）**：JSON 每任务快照，默认 xingqiao / summary，支持 issues；get_project 与 list_project_issues 通过显式注册表关联 schema、校验和执行。按任务检查必要结果，缓存隔离工具与参数；单轮最多两个调用，整批校验后顺序执行。71 项离线测试通过，真实 summary 与一次 issues 双工具成功已记录。详见 [任务 D 交接](tasks/agent/multi-project-registry.md) 与 [D2 交接](tasks/agent/two-tool-batches.md)。
 3. **最小 RAG**：用数份虚构文档，完成切块、embedding、存储、检索、上下文注入与来源标识；对比命中与未命中。先明确 embedding 来源和成本，再实现；不要求向量数据库服务。
-   - E1：已完成并通过主会话验收。三份虚构资料经 markdown-it-py 标题映射产生原文片段及来源，prepare/check 生成并检查确定性构建清单；手动全量准备、拒绝覆盖、输入复查和完整性校验已验证。主会话独立回归 88 项通过，实跑 15 个片段，两份独立重建与原构建一致；产物是 prepared corpus，不是真实向量索引。见 [E1 任务书](tasks/e1-corpus-preparation.md) 与 [实施交接](tasks/e1-corpus-handoff.md)。
-   - E2：embedding、检索与有来源的回答。先做 [E2a 远程编码接入](tasks/e2a-remote-embedding.md)：用户选择百炼 text-embedding-v4；E2a 已通过主会话复核。北京业务空间 endpoint 已确认，唯一一次真实验证成功：15 + 1 个 1024 维向量、3 请求、1850 tokens；103 项离线测试通过。见 [E2a 交接](tasks/e2a-embedding-handoff.md)。不部署本地模型；完整向量索引、检索和生成回答分后续任务推进。
-   - E2b：2026-11-04 JSON 文档向量产物与独立检索已通过主会话复核。复用 E2a 向量，构建原文/来源关联与完整性摘要，检索前检查 E1 过期及编码兼容，逐向量余弦排序。主会话独立回归 119 项通过，已有问题 top-3 演示零 API 完成；仅单问题观察，无回答生成。见 [E2b 交接](tasks/e2b-json-retrieval-handoff.md)。
-   - E2c：已准备 [新问题编码与独立检索任务书](tasks/e2c-live-query-retrieval.md)，尚未实施。单次 query 编码复用 E2b 文档向量；真实验证问题、次数与预算待用户确认。生成回答与来源引用另行立项。
+   - E1：已完成并通过主会话验收。三份虚构资料经 markdown-it-py 标题映射产生原文片段及来源，prepare/check 生成并检查确定性构建清单；手动全量准备、拒绝覆盖、输入复查和完整性校验已验证。主会话独立回归 88 项通过，实跑 15 个片段，两份独立重建与原构建一致；产物是 prepared corpus，不是真实向量索引。见 [E1 任务书](tasks/rag/e1/e1-corpus-preparation.md) 与 [实施交接](tasks/rag/e1/e1-corpus-handoff.md)。
+   - E2：embedding、检索与有来源的回答。先做 [E2a 远程编码接入](tasks/rag/e2a/e2a-remote-embedding.md)：用户选择百炼 text-embedding-v4；E2a 已通过主会话复核。北京业务空间 endpoint 已确认，唯一一次真实验证成功：15 + 1 个 1024 维向量、3 请求、1850 tokens；103 项离线测试通过。见 [E2a 交接](tasks/rag/e2a/e2a-embedding-handoff.md)。不部署本地模型；完整向量索引、检索和生成回答分后续任务推进。
+   - E2b：2026-11-04 JSON 文档向量产物与独立检索已通过主会话复核。复用 E2a 向量，构建原文/来源关联与完整性摘要，检索前检查 E1 过期及编码兼容，逐向量余弦排序。主会话独立回归 119 项通过，已有问题 top-3 演示零 API 完成；仅单问题观察，无回答生成。见 [E2b 交接](tasks/rag/e2b/e2b-json-retrieval-handoff.md)。
+   - E2c：已准备 [新问题编码与独立检索任务书](tasks/rag/e2c/e2c-live-query-retrieval.md)，尚未实施。单次 query 编码复用 E2b 文档向量；真实验证问题、次数与预算待用户确认。生成回答与来源引用另行立项。
    - E3：接入工具注册表，记录检索轨迹；区分检索执行成功与证据足够，完成条件和引用契约待设计。
-   - E1/E2a/E2b 已验收；Toy 全程只用 JSON 保存向量及元数据，PostgreSQL 与 pgvector 留到正式求职项目；后续新问题在线编码、生成问答和 E3 尚未授权实施。前序讨论见 [E 讨论与待定项](tasks/rag-design-discussion.md) 及 [场景与生命周期](tasks/rag-scenario-and-lifecycle-discussion.md)；自动监听、增量更新和更完整的恢复机制留待求职项目按业务要求设计。
+   - E1/E2a/E2b 已验收；Toy 全程只用 JSON 保存向量及元数据，PostgreSQL 与 pgvector 留到正式求职项目；后续新问题在线编码、生成问答和 E3 尚未授权实施。前序讨论见 [E 讨论与待定项](tasks/rag/discussions/rag-design-discussion.md) 及 [场景与生命周期](tasks/rag/discussions/rag-scenario-and-lifecycle-discussion.md)；自动监听、增量更新和更完整的恢复机制留待求职项目按业务要求设计。
 4. **最小 MCP 接入**：将一个已理解的只读工具放入本地 MCP Server，由 Agent 的 MCP Client 调用；保持直接调用路径用于比较。SDK、传输和依赖在开工时核实。
 5. **失败策略与安全边界**：基于当前失败停止机制，补充分类、只读幂等请求的有界重试与等待策略；判断超时的不确定性。限流/余额不盲目重试，fallback 不伪造成功；用离线异常验证，不以真实故障练习。
 6. **端到端评估**：复用运行轨迹，在少量完整任务上检查正确取数、工具选择、停止、检索来源、格式与内容；对独立样例及必要重复采样控制预算。每新增机制先局部测试，不等到最后才验证。

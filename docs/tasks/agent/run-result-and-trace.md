@@ -1,6 +1,6 @@
 # 下一项任务：结构化运行结果与执行轨迹
 
-阅读 AGENTS.md、README.md、docs/PROGRESS.md、docs/ARCHITECTURE.md、docs/TOY_AGENT_ROADMAP.md，以及 toy-agent/deepseek_summary.py 和相关测试。
+阅读 AGENTS.md、README.md、docs/PROGRESS.md、docs/ARCHITECTURE.md、docs/TOY_AGENT_ROADMAP.md，以及 toy-agent/src/deepseek_summary.py 和相关测试。
 
 ## 本轮目标
 

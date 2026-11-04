@@ -6,10 +6,10 @@
 
 阅读 AGENTS.md、README.md、docs/PROGRESS.md、docs/ARCHITECTURE.md，以及：
 
-- docs/tasks/e1-corpus-handoff.md
-- docs/tasks/e2a-remote-embedding.md
-- docs/tasks/e2a-embedding-handoff.md
-- toy-agent/prepare_corpus.py、dashscope_embedding.py、verify_embedding.py 及相关测试。
+- docs/tasks/rag/e1/e1-corpus-handoff.md
+- docs/tasks/rag/e2a/e2a-remote-embedding.md
+- docs/tasks/rag/e2a/e2a-embedding-handoff.md
+- toy-agent/src/prepare_corpus.py、dashscope_embedding.py、verify_embedding.py 及相关测试。
 
 先简要说明输入/输出、最小模块划分、编码兼容字段及主要取舍，再开始实现。保留工作区已有修改。不要重新开启旧摘要调优。
 
@@ -25,8 +25,8 @@ Toy 全程只使用 JSON，不引入 PostgreSQL、pgvector、向量数据库服�
 
 已有本地输入：
 
-- E1 正常 prepared corpus：test-output/e1-20261028/build-001
-- E2a 成功记录：test-output/e2a-20261029-001.json
+- E1 正常 prepared corpus：test-output/rag/e1/20261028/build-001
+- E2a 成功记录：test-output/rag/e2a/e2a-20261029-001.json
 
 若这些本地产物缺失、过期或不匹配，报告原因，不联网补采。不要使用 corrupt-copy。
 
@@ -72,6 +72,6 @@ Toy 全程只使用 JSON，不引入 PostgreSQL、pgvector、向量数据库服�
 
 ## 四、收尾
 
-简洁更新 PROGRESS、SETUP、ARCHITECTURE 和 TOY_AGENT_ROADMAP；重要新决定再更新 DECISIONS，保留历史学习过程。新增 docs/tasks/e2b-json-retrieval-handoff.md，说明架构、JSON 格式、兼容字段、运行命令、测试、真实向量的离线检索观察及限制。
+简洁更新 PROGRESS、SETUP、ARCHITECTURE 和 TOY_AGENT_ROADMAP；重要新决定再更新 DECISIONS，保留历史学习过程。新增 docs/tasks/rag/e2b/e2b-json-retrieval-handoff.md，说明架构、JSON 格式、兼容字段、运行命令、测试、真实向量的离线检索观察及限制。
 
 完成后停止，交回主会话复核。不要自动提交、推送、调用 API 或开展下一阶段。交接中给出实际修改列表、测试数量、输出路径和未验证项。

@@ -6,9 +6,9 @@
 
 本轮只测“给定项目状态 → 结构化摘要”，不重复评估工具选择或 Loop 控制。使用已有 SUMMARY_PROMPT、deepseek-flash、非思考模式、JSON 输出、400 输出 tokens 与 30 秒网络操作超时，每条样例一次请求，无自动重试、无额外评判模型或依赖。
 
-评估集：[project_summary_cases.json](../toy-agent/evals/project_summary_cases.json)，6 条虚构状态，覆盖未解除阻塞、多个阻塞、明确无阻塞、信息不足、阻塞已解除和条件计划。每条样例包含 status、按摘要字段列出的 required_facts，以及 unsupported_claims。后两项仅用于本地评审，不发送给生成模型。
+评估集：[project_summary_cases.json](../toy-agent/evals/cases/project_summary_cases.json)，6 条虚构状态，覆盖未解除阻塞、多个阻塞、明确无阻塞、信息不足、阻塞已解除和条件计划。每条样例包含 status、按摘要字段列出的 required_facts，以及 unsupported_claims。后两项仅用于本地评审，不发送给生成模型。
 
-真实基线：[baseline_20261010.json](../toy-agent/evals/baseline_20261010.json)，保存当时的提示词、模型、原始样例、有效摘要、结束原因和用量。不含密钥；factual_review=pending 表示采集脚本没有自动给事实结论，本页记录 Codex 对保存结果逐条对照的初评及文档收尾复核，尚未经用户逐条确认。
+真实基线：[baseline_20261010.json](../toy-agent/evals/results/baseline_20261010.json)，保存当时的提示词、模型、原始样例、有效摘要、结束原因和用量。不含密钥；factual_review=pending 表示采集脚本没有自动给事实结论，本页记录 Codex 对保存结果逐条对照的初评及文档收尾复核，尚未经用户逐条确认。
 
 ## 评审标准
 
@@ -42,7 +42,7 @@
 在仓库根目录运行（会产生模型费用；输出父目录需存在，文件必须不存在）：
 
 ```sh
-toy-agent/.venv/bin/python toy-agent/evaluate_summary.py --output /private/tmp/project-summary-eval-new.json
+toy-agent/.venv/bin/python toy-agent/src/evaluate_summary.py --output /private/tmp/project-summary-eval-new.json
 ```
 
 每个样例独立，单条失败后记录安全错误并继续下一个样例，不重试失败请求。有效响应中的用量即使摘要校验失败也计入累计；无有效响应时 usage=null，累计只是已知用量。存在生成失败时退出码 1，全部格式成功时退出码 0；退出码 0 不代表事实质量通过。脚本拒绝覆盖已有输出文件。
@@ -50,7 +50,7 @@ toy-agent/.venv/bin/python toy-agent/evaluate_summary.py --output /private/tmp/p
 离线测试沿用现有命令，不读密钥、不调用模型：
 
 ```sh
-toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py' -v
 ```
 
 已有离线验证及主会话复核记录：30 项测试全部通过，覆盖样例校验、规则不进入模型输入、结果采集、格式失败保留用量、网络失败不重试和禁用工具时保留请求限制；原有 Loop 测试仍通过。它们验证程序机制，不证明模型事实质量。
@@ -63,12 +63,12 @@ toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
 
 共享 SUMMARY_PROMPT 原先只写“下一步行动”，可能让模型省略条件计划或把计划仅写入风险项。本轮一次修改为通用字段规则：next_steps 同时保留下一步行动与明确计划，以及计划前提、时间和不确定性；blockers 保留当前阻塞和明确风险，排查进展附在对应阻塞，不独立充当阻塞；不补原文没有的信息。三字段结构、校验、Loop 与请求限制未改。
 
-修改提示词前已固定 [transfer_cases_20261011.json](../toy-agent/evals/transfer_cases_20261011.json) 的两条状态与评审规则：
+修改提示词前已固定 [transfer_cases_20261011.json](../toy-agent/evals/cases/transfer_cases_20261011.json) 的两条状态与评审规则：
 
 - artifact_gate：产物校验和差异阻塞客户预览，排查原因未定位；重新校验通过后才计划明天 16 点预览，时间可能调整。
 - recovered_queue_window：队列死锁已修复并验证，积压仍在消化；周四灰度依赖连续 24 小时无异常，变更窗口未确认且时间可能调整。
 
-新增样例不仅替换项目名：分别引入产物一致性与原因未定位、阻塞解除后的恢复进展及观察窗口。原六条状态与规则不变。八条组合集 [comparison_cases_20261011.json](../toy-agent/evals/comparison_cases_20261011.json) 的前六条与原评估集完全一致，后两条与新增集一致。新增集文件 SHA256 为 `4d031b79252e1b5e49acdead729be0b360531173599fc7e39412326cdb9f2e54`。
+新增样例不仅替换项目名：分别引入产物一致性与原因未定位、阻塞解除后的恢复进展及观察窗口。原六条状态与规则不变。八条组合集 [comparison_cases_20261011.json](../toy-agent/evals/cases/comparison_cases_20261011.json) 的前六条与原评估集完全一致，后两条与新增集一致。新增集文件 SHA256 为 `4d031b79252e1b5e49acdead729be0b360531173599fc7e39412326cdb9f2e54`。
 
 新增集在改词前固定并用旧提示词采集；旧输出在改词前可见，因此不能称为严格盲测或未参与调优的保留集，只作为本轮迁移检查。通用修改方向在旧输出采集前已说明，看到八条新结果后未二次改词或继续调用。
 
@@ -76,9 +76,9 @@ toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
 
 | 记录 | 样例数 | 输入 tokens | 输出 tokens | 总计 |
 |---|---:|---:|---:|---:|
-| [旧六条基线](../toy-agent/evals/baseline_20261010.json)，直接复用、未重跑 | 6 | 1148 | 244 | 1392 |
-| [旧提示词新增两条](../toy-agent/evals/transfer_old_prompt_20261011.json) | 2 | 425 | 144 | 569 |
-| [新提示词八条](../toy-agent/evals/prompt_revision_20261011.json) | 8 | 2501 | 407 | 2908 |
+| [旧六条基线](../toy-agent/evals/results/baseline_20261010.json)，直接复用、未重跑 | 6 | 1148 | 244 | 1392 |
+| [旧提示词新增两条](../toy-agent/evals/results/transfer_old_prompt_20261011.json) | 2 | 425 | 144 | 569 |
+| [新提示词八条](../toy-agent/evals/results/prompt_revision_20261011.json) | 8 | 2501 | 407 | 2908 |
 | 本轮实际请求合计 | 10 | 2926 | 551 | 3477 |
 
 本轮恰好 10 次摘要请求，无重试、无额外 Loop 或评判模型请求；全部 stop、结构通过。原基线未覆盖或改写。旧新增记录的提示词与原基线一致，新记录包含本轮实际提示词。样例标签不发送给模型，所有结果仍为 factual_review=pending，表示采集脚本没有自动评分。
@@ -118,7 +118,7 @@ toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
 
 上一轮候选未通过主会话质量验收。本轮仅修正一次共享 SUMMARY_PROMPT：blockers 同时保留当前阻塞与原文明示的风险；“没有其他阻塞”不能抵消已知风险；计划与对应明确风险可按用途分别进入 next_steps 和 blockers，不因避免重复而遗漏。排查及原因是否定位要求与对应阻塞合写在同一个数组元素中；普通条件计划不能一律推断为风险。仍只依据输入，保留计划前提、时间及不确定性。三字段、空数组规则、Loop、缓存、协议、限制和失败策略未变，没有程序补填。
 
-31 项现有离线测试全部通过；未添加提示词字面断言。使用未修改的八条组合集，每条只采集一次，无自动重试，共 8 次真实摘要请求，全部 stop、结构通过 8/8。新文件 [risk_plan_revision_20261011.json](../toy-agent/evals/risk_plan_revision_20261011.json) 保存实际提示词、原规则、原始摘要和用量；历史结果未覆盖。评审规则仍不发送给模型，factual_review=pending 仍表示采集脚本不自动评分。
+31 项现有离线测试全部通过；未添加提示词字面断言。使用未修改的八条组合集，每条只采集一次，无自动重试，共 8 次真实摘要请求，全部 stop、结构通过 8/8。新文件 [risk_plan_revision_20261011.json](../toy-agent/evals/results/risk_plan_revision_20261011.json) 保存实际提示词、原规则、原始摘要和用量；历史结果未覆盖。评审规则仍不发送给模型，factual_review=pending 仍表示采集脚本不自动评分。
 
 | 记录 | 请求数 | 输入 tokens | 输出 tokens | 总计 |
 |---|---:|---:|---:|---:|

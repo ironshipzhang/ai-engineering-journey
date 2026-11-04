@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
-DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config/local.toml"
+DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config/local.toml"
 API_PATH = "/api/v1/services/embeddings/text-embedding/text-embedding"
 DIMENSIONS = {64, 128, 256, 512, 768, 1024, 1536, 2048}
 BATCH_SIZE = 10

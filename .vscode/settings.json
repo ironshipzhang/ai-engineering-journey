@@ -1,5 +1,11 @@
 {
   "python.defaultInterpreterPath": "${workspaceFolder}/toy-agent/.venv",
+  "python.analysis.extraPaths": ["./toy-agent/src"],
+  "python.envFile": "${workspaceFolder}/.vscode/python.env",
+  "python.testing.unittestEnabled": true,
+  "python.testing.pytestEnabled": false,
+  "python.testing.cwd": "${workspaceFolder}",
+  "python.testing.unittestArgs": ["-s", "toy-agent/tests", "-p", "test_*.py"],
   "files.exclude": {
     "**/__pycache__": true,
     ".tools": true,

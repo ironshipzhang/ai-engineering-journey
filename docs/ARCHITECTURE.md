@@ -1,6 +1,6 @@
 # 当前系统：有界只读 Agent Loop
 
-Agent 入口为 `toy-agent/deepseek_summary.py`，其执行路径仍仅使用 Python 标准库，无 Agent 框架。`hello.py` 独立用于检查 Python 环境。E1 的独立资料准备入口使用 markdown-it-py，未接入 Agent，见文末。
+Agent 入口为 `toy-agent/src/deepseek_summary.py`，其执行路径仍仅使用 Python 标准库，无 Agent 框架。`hello.py` 独立用于检查 Python 环境。E1 的独立资料准备入口使用 markdown-it-py，未接入 Agent，见文末。
 
 ## 数据流
 
@@ -61,7 +61,7 @@ JSON 顶层为非空项目数组，每项严格含 project_id、name、status、
 
 ## 独立事实评估入口
 
-`evaluate_summary.py` 读取 `evals/project_summary_cases.json`，逐条将状态和共享 SUMMARY_PROMPT 发给模型。request_completion 的 with_tools=False 仅用于这条评估路径；Loop 默认仍提供工具。每条样例一次模型请求，不进入 Loop。
+`evaluate_summary.py` 读取 `toy-agent/evals/cases/project_summary_cases.json`，逐条将状态和共享 SUMMARY_PROMPT 发给模型。request_completion 的 with_tools=False 仅用于这条评估路径；Loop 默认仍提供工具。每条样例一次模型请求，不进入 Loop。
 
 有效摘要由共享 display_summary / parse_summary 校验后返回并写入新 JSON 文件，与原始状态、检查点、用量、错误和待评审标记一起保存。采集脚本不做语义评分；保存结果的 Codex 复核记录及尚未经用户逐条确认的说明见 [EVALUATION.md](EVALUATION.md)。
 
@@ -114,7 +114,7 @@ E1 原文 + prepared corpus
 
 本地保护上限为每条 8192 UTF-8 字节，比服务的 8192 tokens 限制更保守，但不是精确 token 计数；超过时直接失败，不截断。原生响应支持 index 或 text_index（每项必须且只能出现一个），按唯一完整索引恢复输入顺序；本次真实接口返回 text_index。E1 check 仅保证编码开始时读取的快照匹配，不给整个网络过程加文件锁。
 
-2026-10-29 一次真实验证成功：15 + 1 个向量、1024 维、3 请求、1850 tokens。编码验证结果不是正式向量索引：embedding 配置与资料的长期兼容检查、持久化索引完整性、检索、问答前检查/过期拒绝、来源回答及 Agent 工具集成都留待后续任务。详见 [E2a 交接](tasks/e2a-embedding-handoff.md)。
+2026-10-29 一次真实验证成功：15 + 1 个向量、1024 维、3 请求、1850 tokens。编码验证结果不是正式向量索引：embedding 配置与资料的长期兼容检查、持久化索引完整性、检索、问答前检查/过期拒绝、来源回答及 Agent 工具集成都留待后续任务。详见 [E2a 交接](tasks/rag/e2a/e2a-embedding-handoff.md)。
 
 ## E2b：JSON 文档向量产物与精确检索（2026-11-04）
 
@@ -133,4 +133,10 @@ build 检查成功标志之外的全量范围、ID 集合、输入行、来源�
 
 余弦按各向量的重算范数计算，不修改保存的原向量；先除范数再做乘积并用 math.fsum 求和，浮点舍入越界时限制在 [-1,1]。分数降序、同分 chunk_id 升序；top-k 正整数，超出返回全部。结果含 requested_top_k、returned_count、排名、原文、来源、构建摘要和编码契约，明确标记 candidates_only，无证据阈值、无生成回答。
 
-输出使用独占文件创建，拒绝覆盖；先完成内存序列化再写。中断可能留下空/部分文件，不能通过后续 JSON/摘要/关联检查；没有原子发布、fsync、锁、活动版本指针或自动更新。检查只保证读取快照。全量读取、逐向量计算、逐次重验 E1 是当前 15 片段 Toy 的有意简化。详见 [E2b 交接](tasks/e2b-json-retrieval-handoff.md)。
+输出使用独占文件创建，拒绝覆盖；先完成内存序列化再写。中断可能留下空/部分文件，不能通过后续 JSON/摘要/关联检查；没有原子发布、fsync、锁、活动版本指针或自动更新。检查只保证读取快照。全量读取、逐向量计算、逐次重验 E1 是当前 15 片段 Toy 的有意简化。详见 [E2b 交接](tasks/rag/e2b/e2b-json-retrieval-handoff.md)。
+
+## 目录边界（2026-11-04）
+
+源码位于 toy-agent/src，测试位于 toy-agent/tests；仍是简单脚本模块，执行脚本不需要安装本项目。默认配置定位到仓库 config/local.toml，数据和知识资料定位到 toy-agent/data 与 knowledge，评估输入定位到 toy-agent/evals/cases。以上路径按源码位置解析，用户传入 CLI 的相对路径仍按当前工作目录解释。测试通过显式 PYTHONPATH 导入 src，VS Code 使用同样的源码和测试目录。
+
+任务书/交接与本地产物按阶段分别归档到 docs/tasks 与 test-output。迁移不改变 E1 片段的相对 source_path、build_id、编码契约或向量内容，因此无需重新 prepare/build/编码；已有产物仍须通过原完整性与资料检查。历史评估结果移到 evals/results 并保留原字节。详见 [项目目录](PROJECT_STRUCTURE.md)。

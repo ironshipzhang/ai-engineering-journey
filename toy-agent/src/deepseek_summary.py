@@ -23,7 +23,7 @@ class SummaryError(Exception):
     """A safe, locally defined message suitable for terminal output."""
 
 
-DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "local.toml"
+DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "local.toml"
 
 
 def read_config_api_key(path: Path = DEFAULT_CONFIG_PATH) -> str:
@@ -70,7 +70,7 @@ SUMMARY_PROMPT = (
     "不补充原文没有的事实、负责人、日期、原因或解决办法。"
     '格式示例：{"progress":["接口已完成"],"blockers":[],"next_steps":["完成联调"]}'
 )
-PROJECTS_PATH = Path(__file__).resolve().parent / "data" / "projects.json"
+PROJECTS_PATH = Path(__file__).resolve().parent.parent / "data" / "projects.json"
 TASK_TOOLS = {
     "summary": frozenset({"get_project"}),
     "issues": frozenset({"get_project", "list_project_issues"}),

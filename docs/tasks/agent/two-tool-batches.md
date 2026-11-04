@@ -29,7 +29,7 @@ SUMMARY_PROMPT 内容质量规则、任务必需成功结果、Registry、数据
 经授权使用当前本地配置，运行一次 xingqiao / issues，输出预先确认不存在，CLI 独占创建：
 
 ```sh
-toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --project-id xingqiao --task issues --output test-output/d2-issues-001.json
+toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py --project-id xingqiao --task issues --output test-output/agent/d2/d2-issues-001.json
 ```
 
 真实验证需要网络权限，按审批通道执行，未绕过限制。进程正常退出 0，无重试或第二次任务。结果 JSON 与终端核对一致，status=succeeded、error=null。
@@ -53,24 +53,24 @@ toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --project-id xingqiao -
 
 ```sh
 # 所有 71 项测试
-toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py' -v
 
 # 只运行新增 11 项批次测试
-toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_tool_batches.py' -v
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_tool_batches.py' -v
 ```
 
 以下为用户可手动执行的真实调用命令，不属于本轮自动追加验证；每次任务最多 5 次请求，模型也可以选择分轮调用：
 
 ```sh
 # summary，只输出控制台
-toy-agent/.venv/bin/python toy-agent/deepseek_summary.py
+toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py
 
 # issues，只输出控制台
-toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --project-id xingqiao --task issues
+toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py --project-id xingqiao --task issues
 
 # 同时输出控制台并保存完整 JSON，输出文件名须尚不存在
 mkdir -p test-output
-toy-agent/.venv/bin/python toy-agent/deepseek_summary.py --project-id xingqiao --task issues --output test-output/d2-issues-user-001.json
+toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py --project-id xingqiao --task issues --output test-output/agent/d2/d2-issues-user-001.json
 ```
 
 可用 --project-id yunfan 测试空问题列表；--output 不覆盖文件，重复测试要换新文件名。默认本地配置读取方式和 --config 保持兼容。

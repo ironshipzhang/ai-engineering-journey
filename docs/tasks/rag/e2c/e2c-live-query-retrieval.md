@@ -82,10 +82,10 @@ CLI 展示问题、状态、请求数和用量，以及候选排名、分数、�
 
 调用前从官方资料核实当前地域、接口限制、费率和账户可用性；不可凭历史用户报告余额推断当前余额。不为核实可用性额外发模型探测请求，不要求读取账单或账户余额；用户确认服务可用，或标注余额未查。依据实际返回 tokens 估算费用并注明不是账单；无法确认必要信息时先报告。
 
-使用新的 test-output/ 路径保存两个独立结果；报告各自及合计 HTTP 尝试、tokens/未知用量、维度、原文命中观察。最多两条观察不等于系统性检索效果评估。
+使用新的 test-output/rag/e2c/ 路径保存两个独立结果；报告各自及合计 HTTP 尝试、tokens/未知用量、维度、原文命中观察。最多两条观察不等于系统性检索效果评估。
 
 ## 六、交接与停止点
 
-更新 PROGRESS、SETUP、ARCHITECTURE、TOY_AGENT_ROADMAP；重要新取舍再更新 DECISIONS。新增 docs/tasks/e2c-live-query-retrieval-handoff.md，记录接口/CLI 命令、执行顺序、输出格式、离线测试、真实验证授权状态和实际结果或未验证项。
+更新 PROGRESS、SETUP、ARCHITECTURE、TOY_AGENT_ROADMAP；重要新取舍再更新 DECISIONS。新增 docs/tasks/rag/e2c/e2c-live-query-retrieval-handoff.md，记录接口/CLI 命令、执行顺序、输出格式、离线测试、真实验证授权状态和实际结果或未验证项。
 
 保留历史记录和既有修改，不更改无关代码、依赖、资料、真实配置、旧评估。不要自动提交、推送、接生成或 E3。完成离线实现后交回主会话复核；真实验证未确认就明确记录“未执行”，不得写成完成。

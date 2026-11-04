@@ -16,7 +16,7 @@
 ## 离线验证
 
 ```sh
-toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py' -v
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py' -v
 ```
 
 实际结果：60 项测试通过，原 45 项保留核心断言并适配快照与新工具，新增 15 项。测试使用临时文件、假密钥和预设响应；未读取 config/local.toml 或其他真实密钥，不调用模型。
@@ -56,7 +56,7 @@ model_request #1 tool_calls
 
 模拟摘要包含导入导出已验证、手册正在编写、问题记录为空；blockers=[]；下一步为完成手册后内部试用，时间尚未确认。空问题记录没有被混同为不存在的项目。
 
-本地完整模拟结果与终端展示保存在已忽略的 `test-output/task-d-summary-simulated.json`、`test-output/task-d-issues-simulated.json` 及同名 `.txt`；JSON 外层 source 明确标记预设离线响应，并包含项目、任务和完整 result。非空问题的 issues 任务、反向顺序、两个工具重复缓存由单元测试覆盖。
+本地完整模拟结果与终端展示保存在已忽略的 `test-output/agent/d/task-d-summary-simulated.json`、`test-output/agent/d/task-d-issues-simulated.json` 及同名 `.txt`；JSON 外层 source 明确标记预设离线响应，并包含项目、任务和完整 result。非空问题的 issues 任务、反向顺序、两个工具重复缓存由单元测试覆盖。
 
 ## 限制与主会话复核项
 
@@ -71,8 +71,8 @@ model_request #1 tool_calls
 
 - 检查 Git diff、数据文件、注册/校验/执行映射和测试，重跑 60 项离线测试全部通过，git diff --check 通过；没有发现阻碍任务 D 范围验收的问题。共享 SUMMARY_PROMPT、模型、API 地址和请求限制与 HEAD 一致。
 - 每任务完整快照、两个工具不同职责、目标项目精确校验、TASK_TOOLS 完成条件、工具名与参数组成缓存键及当前调用 ID 绑定均符合要求。异常本地执行转为安全失败结果，保留事件与已知用量；未扩展成插件框架。
-- 用户真实运行的 test-output/d-summary-001.json 已核对：succeeded、两次请求、一次 get_project 执行、零缓存，输入 1672、输出 110、总计 1782 tokens，用量完整且与分轮记录一致。这验证新增双工具定义下的 summary 正常路径，不证明 list_project_issues 或 issues 双工具链路真实运行成功。
-- 用户随后提供 test-output/d-issues-001.json：failed，首轮 tool_calls 后在 tool_validation 因调用数不符合恰好一次要求而停止，零工具执行、零缓存，输入 761、输出 75、总计 836 tokens，用量完整。真实 issues 成功链路尚未跑通；这是调用数量约束的真实拒绝路径，不能记录为双工具成功。结果未保存原始调用列表，不能仅凭此文件确认调用数量或工具名称。
+- 用户真实运行的 test-output/agent/d/d-summary-001.json 已核对：succeeded、两次请求、一次 get_project 执行、零缓存，输入 1672、输出 110、总计 1782 tokens，用量完整且与分轮记录一致。这验证新增双工具定义下的 summary 正常路径，不证明 list_project_issues 或 issues 双工具链路真实运行成功。
+- 用户随后提供 test-output/agent/d/d-issues-001.json：failed，首轮 tool_calls 后在 tool_validation 因调用数不符合恰好一次要求而停止，零工具执行、零缓存，输入 761、输出 75、总计 836 tokens，用量完整。真实 issues 成功链路尚未跑通；这是调用数量约束的真实拒绝路径，不能记录为双工具成功。结果未保存原始调用列表，不能仅凭此文件确认调用数量或工具名称。
 - 接受现有小规模取舍：整份坏数据使任务失败；未知目标项目在工具执行时失败，可能已产生一次模型请求；宽泛异常捕获保留安全结果，但不提供原始异常诊断。当前不要求为这些取舍增加机制或付费测试。
 - 本次主会话未读取真实密钥、未调用模型、未改代码、未提交/推送或开展 E。仅补充复核记录。完整运行结果暂未额外保存 task / project_id 元数据，可由现有调用轨迹辨认，后续如需批量任务追踪再考虑扩展。
 
@@ -85,7 +85,7 @@ model_request #1 tool_calls
 
 ### 2. 真实 summary 路径已成功
 
-本次重新核对 `test-output/d-summary-001.json`：status=succeeded，2 次模型请求、1 次 get_project 执行、0 次缓存；输入 1672、输出 110、总计 1782 tokens，complete=true。
+本次重新核对 `test-output/agent/d/d-summary-001.json`：status=succeeded，2 次模型请求、1 次 get_project 执行、0 次缓存；输入 1672、输出 110、总计 1782 tokens，complete=true。
 
 ```text
 model_request #1 tool_calls
@@ -97,7 +97,7 @@ model_request #1 tool_calls
 
 ### 3. 真实 issues 的调用数量拒绝路径已记录
 
-本次重新核对 `test-output/d-issues-001.json`：status=failed，summary=null；首轮 finish_reason=tool_calls，在 tool_validation 停止，错误为“必须恰好提出一次工具调用；不执行工具。”。1 次模型请求、0 次工具执行、0 次缓存；输入 761、输出 75、总计 836 tokens，complete=true。
+本次重新核对 `test-output/agent/d/d-issues-001.json`：status=failed，summary=null；首轮 finish_reason=tool_calls，在 tool_validation 停止，错误为“必须恰好提出一次工具调用；不执行工具。”。1 次模型请求、0 次工具执行、0 次缓存；输入 761、输出 75、总计 836 tokens，complete=true。
 
 ```text
 model_request #1 tool_calls
@@ -129,4 +129,4 @@ model_request #1 tool_calls
 
 ## 后续设计决定：D2（2026-10-12）
 
-主会话已明确选择在独立任务 D2 中允许每轮 1 或 2 个调用，整批校验后顺序执行，仍最多 5 次模型请求。D2 已实现并通过 71 项离线测试，一次真实 xingqiao / issues 成功：首轮两个工具按 get_project → list_project_issues 执行，次轮摘要，共 2024 tokens，保存为 test-output/d2-issues-001.json。完整交接见 [two-tool-batches.md](two-tool-batches.md)，待主会话复核；本补充不修改旧失败或历史验收事实。
+主会话已明确选择在独立任务 D2 中允许每轮 1 或 2 个调用，整批校验后顺序执行，仍最多 5 次模型请求。D2 已实现并通过 71 项离线测试，一次真实 xingqiao / issues 成功：首轮两个工具按 get_project → list_project_issues 执行，次轮摘要，共 2024 tokens，保存为 test-output/agent/d2/d2-issues-001.json。完整交接见 [two-tool-batches.md](two-tool-batches.md)，待主会话复核；本补充不修改旧失败或历史验收事实。

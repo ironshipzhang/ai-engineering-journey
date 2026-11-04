@@ -159,6 +159,21 @@ def safe_request_id(payload, header, key: str) -> str | None:
     return None
 
 
+def validate_vector(vector, dimension: int) -> float:
+    """Shared offline numeric validation; returns a freshly computed norm."""
+    if not isinstance(vector, list) or len(vector) != dimension:
+        raise EmbeddingError("response_validation", "返回向量维度不符")
+    try:
+        if any(type(value) not in (int, float) or not math.isfinite(value) for value in vector):
+            raise ValueError()
+        norm = math.hypot(*vector)
+        if not math.isfinite(norm) or norm == 0:
+            raise ValueError()
+    except (ValueError, OverflowError):
+        raise EmbeddingError("response_validation", "向量含非法数值或范数无效") from None
+    return norm
+
+
 def validate_vectors(payload, count: int, dimension: int) -> list[dict]:
     if not isinstance(payload, dict) or payload.get("code") or payload.get("error"):
         raise EmbeddingError("response_validation", "embedding 响应不是成功结果")
@@ -178,16 +193,7 @@ def validate_vectors(payload, count: int, dimension: int) -> list[dict]:
         if type(index) is not int or index not in range(count) or index in mapped:
             raise EmbeddingError("response_validation", "输入索引缺失、重复或越界")
         vector = row.get("embedding")
-        if not isinstance(vector, list) or len(vector) != dimension:
-            raise EmbeddingError("response_validation", "返回向量维度不符")
-        try:
-            if any(type(value) not in (int, float) or not math.isfinite(value) for value in vector):
-                raise ValueError()
-            norm = math.hypot(*vector)
-            if not math.isfinite(norm) or norm == 0:
-                raise ValueError()
-        except (ValueError, OverflowError):
-            raise EmbeddingError("response_validation", "向量含非法数值或范数无效") from None
+        norm = validate_vector(vector, dimension)
         mapped[index] = {"response_index": index, "response_index_field": keys[0],
                          "vector": vector, "norm": norm}
     return [mapped[i] for i in range(count)]

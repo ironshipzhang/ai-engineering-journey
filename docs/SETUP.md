@@ -397,3 +397,34 @@ toy-agent/.venv/bin/python toy-agent/verify_embedding.py \
 入口自动先执行 E1 check，过期或损坏时不读取编码配置、不请求 API，也不自动 prepare。正常编码 10 + 5 个文档片段和 1 个问题；最大 3 次尝试，任一次失败即停、不重试。返回码 0 表示本次编码验证成功，1 表示失败；查看 JSON 的 error、requests、usage 和已保存 documents，可区分前置检查失败、请求失败及响应校验失败。未知用量不能按零计费解释。输出已存在时联网前拒绝覆盖。
 
 本轮结果 `test-output/e2a-20261029-001.json`：3 请求成功，15 文档向量 + 1 问题向量，1024 维；用量 1245 + 592 + 13 = 1850 tokens。北京同步公开费率估算 ¥0.000925，不是实际账单；未查询余额。失败路径仅离线模拟。结果格式及限制见 [E2a 交接](tasks/e2a-embedding-handoff.md)。
+
+## E2b：JSON 向量产物与独立检索（2026-11-04）
+
+以下命令在仓库根目录运行，全部离线：不读取 local.toml、不调用 API、不重新编码。依赖不变。正常 E1 与成功 E2a 记录须已存在且匹配；缺失/过期时停止，不联网补采。`--output` 文件必须不存在，父目录必须存在。
+
+```bash
+# 手动导入全量文档向量，并结合 E1 原文构建新产物。
+toy-agent/.venv/bin/python toy-agent/json_retrieval.py build \
+  --prepared test-output/e1-20261028/build-001 \
+  --record test-output/e2a-20261029-001.json \
+  --output test-output/e2b-vectors-manual-001.json
+
+# 独立检查原文、来源、完整性和当前 E1 构建关联。
+toy-agent/.venv/bin/python toy-agent/json_retrieval.py check \
+  --prepared test-output/e1-20261028/build-001 \
+  --artifact test-output/e2b-vectors-manual-001.json
+
+# 复用记录中那个问题的向量；没有任意问题文本覆盖参数。
+toy-agent/.venv/bin/python toy-agent/json_retrieval.py search \
+  --prepared test-output/e1-20261028/build-001 \
+  --artifact test-output/e2b-vectors-manual-001.json \
+  --query-record test-output/e2a-20261029-001.json \
+  --top-k 3 --output test-output/e2b-top3-manual-001.json
+
+# 完整离线回归。
+toy-agent/.venv/bin/python -m unittest discover -s toy-agent -p 'test_*.py'
+```
+
+三个操作均可指定 `--knowledge` 和 `--max-chars`，默认沿用 E1（1200 字符）。search 自动检查 E1 与向量产物，不依赖用户先运行 check；`--output` 可省略，只展示终端结果。退出 0 表示操作成功，2 表示 E1 资料/处理配置过期，1 表示其他失败（包括构建关联、编码不兼容、损坏、缺失或覆盖拒绝）。不自动重建。
+
+本轮 119 项测试通过（103 + 16）。实际产物：`test-output/e2b-vectors-20261104-001.json`（15 个文档向量）与 `test-output/e2b-top3-20261104-001.json`。已有问题“数据库迁移失败后，重跑前需要检查什么？”第一名为迁移手册第 11–20 行，cosine≈0.84009560。分数不是正确率，其他问题尚未做真实语义验证。格式、兼容策略和完整观察见 [E2b 交接](tasks/e2b-json-retrieval-handoff.md)。

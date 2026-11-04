@@ -32,6 +32,8 @@ E1 已完成并通过主会话验收：三份虚构资料经 markdown-it-py 生�
 
 E2a 远程编码接入已通过主会话复核：百炼 text-embedding-v4 独立客户端完成 15 个文档和 1 个问题的 1024 维编码验证；完整离线回归 103 项通过。当前 JSON 是编码验证记录，正式向量产物与检索、问答尚未实现。详见 [E2a 交接](docs/tasks/e2a-embedding-handoff.md)。Toy 全程只用 JSON 保存原文关联、向量及元数据，不引入数据库服务；PostgreSQL 与 pgvector 留到正式求职项目。
 
+E2b JSON 向量产物与独立检索已通过主会话复核：15 个文档向量与 E1 原文/来源关联，检索时检查完整性、过期状态和编码兼容性，返回余弦 top-k 候选。完整离线回归 119 项通过；已有问题的离线演示已核对。新问题在线编码、生成回答及 Agent 检索工具尚未实现。详见 [E2b 交接](docs/tasks/e2b-json-retrieval-handoff.md)。
+
 默认运行（会联网）：`toy-agent/.venv/bin/python toy-agent/deepseek_summary.py`，等价于 `--project-id xingqiao --task summary`；问题摘要可用 `--project-id yunfan --task issues`，仍支持 `--config` 和 `--output`。
 
 任务 C 的已完成实现范围见 [结果与执行轨迹任务说明](docs/tasks/run-result-and-trace.md)。

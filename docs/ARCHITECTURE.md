@@ -115,3 +115,22 @@ E1 原文 + prepared corpus
 本地保护上限为每条 8192 UTF-8 字节，比服务的 8192 tokens 限制更保守，但不是精确 token 计数；超过时直接失败，不截断。原生响应支持 index 或 text_index（每项必须且只能出现一个），按唯一完整索引恢复输入顺序；本次真实接口返回 text_index。E1 check 仅保证编码开始时读取的快照匹配，不给整个网络过程加文件锁。
 
 2026-10-29 一次真实验证成功：15 + 1 个向量、1024 维、3 请求、1850 tokens。编码验证结果不是正式向量索引：embedding 配置与资料的长期兼容检查、持久化索引完整性、检索、问答前检查/过期拒绝、来源回答及 Agent 工具集成都留待后续任务。详见 [E2a 交接](tasks/e2a-embedding-handoff.md)。
+
+## E2b：JSON 文档向量产物与精确检索（2026-11-04）
+
+```text
+build：当前资料 + E1 check → 成功全量 E2a 文档向量 → 按 chunk_id 关联 E1 原文 → 带摘要的新 JSON
+search：向量 JSON + 当前 E1 检查 + 已有问题向量/编码契约 → 精确余弦排序 → top-k 原文/分数/来源
+```
+
+`json_retrieval.py` 提供 build/check/search CLI 及函数。search 是带检查的公共检索入口；纯函数 rank_vectors 只负责算法，不能代替完整入口。向量数值校验抽为 dashscope_embedding.validate_vector，E2a/E2b 共用，不复制两套规则。无新依赖，没有真实配置读取或网络路径。
+
+向量产物为单文件 `e2b_json_vectors` / 格式 1：e1_build_id、encoding、provenance、documents 和 content_sha256。documents 包含完整 E1 片段（原文、标题/版本/章节/来源/ID）及 vector。完整性摘要覆盖除 content_sha256 本身之外的全部字段，按 E1 json_bytes 的 UTF-8、键排序、2 空格缩进、末尾换行和禁止 NaN 规则序列化。摘要检测意外损坏，不认证来源、防恶意修改或验证向量确实由供应商编码；E2a 原始记录无签名，导入时记录其文件 SHA-256 供追溯。
+
+编码契约显式提取 provider、model、dimension、interface、output_type、document_text_type、query_text_type、prefix、instruct、document_input、normalization、endpoint。当前仅支持已有 E2a 原生 v4 语义，endpoint 要求完全一致，是保守兼容策略，并不声称不同业务空间必然不兼容。query 输入逐字来自 E2a 格式 1 的 query.text，记录在 provenance。密钥不进入产物，批量/超时/历史用量不作为兼容字段；无法发现供应商在同模型名下未声明的更新。
+
+build 检查成功标志之外的全量范围、ID 集合、输入行、来源、build_id 和实际向量；不相信记录 norm，允许未知 usage。写入前再次检查当前 E1。check/search 重新校验摘要和向量，并调用 E1 check，将每条原文/来源与 E1 逐条核对；不自动 prepare 或编码。产物可独立于 E2a 文档记录加载，但仍要求 E1 与当前知识资料用于过期检查。CLI 导入问题时保留其真实文本，没有改标签冒充新问题的参数；无法仅从数值证明文本与向量的语义绑定。
+
+余弦按各向量的重算范数计算，不修改保存的原向量；先除范数再做乘积并用 math.fsum 求和，浮点舍入越界时限制在 [-1,1]。分数降序、同分 chunk_id 升序；top-k 正整数，超出返回全部。结果含 requested_top_k、returned_count、排名、原文、来源、构建摘要和编码契约，明确标记 candidates_only，无证据阈值、无生成回答。
+
+输出使用独占文件创建，拒绝覆盖；先完成内存序列化再写。中断可能留下空/部分文件，不能通过后续 JSON/摘要/关联检查；没有原子发布、fsync、锁、活动版本指针或自动更新。检查只保证读取快照。全量读取、逐向量计算、逐次重验 E1 是当前 15 片段 Toy 的有意简化。详见 [E2b 交接](tasks/e2b-json-retrieval-handoff.md)。

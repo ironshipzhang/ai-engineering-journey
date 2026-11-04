@@ -79,7 +79,7 @@
 
 ## Next
 
-- E1 与 E2a 已验收；下一步先明确 JSON 向量产物与 E1 原文的关联、配置兼容性和过期拒绝，再设计相似度检索对照；完整检索与问答另行授权。Toy 使用 JSON，后续求职项目使用 PostgreSQL，是否使用 pgvector 尚未确定。不重新开启旧摘要调优。
+- E1 与 E2a 已验收；下一步先明确 JSON 向量产物与 E1 原文的关联、配置兼容性和过期拒绝，再设计相似度检索对照；完整检索与问答另行授权。Toy 全程只用 JSON；PostgreSQL 与 pgvector 留到正式求职项目。不重新开启旧摘要调优。
 - 后续路线保留：小型 RAG → MCP → 失败策略 → 端到端评估 → CLI 演示收尾；Skill 与流式输出可选。以 [TOY_AGENT_ROADMAP.md](TOY_AGENT_ROADMAP.md) 为当前状态；SVG 的 E1 仍是此前计划快照，本轮未改图。
 
 ## Open Questions

@@ -2,7 +2,7 @@
 
 ## 2026-10-29：Toy 使用 JSON，后续求职项目使用 PostgreSQL
 
-- 用户确认 Toy 继续用 JSON 简单保存；后续求职项目使用 PostgreSQL。是否采用 pgvector、向量表结构、索引和部署方式仍待按业务需要确定。此前 PostgreSQL 仅为候选的讨论属于历史状态。
+- 用户确认 Toy 全程只用 JSON 保存原文关联、向量及元数据，不引入 PostgreSQL 或 pgvector。PostgreSQL 与 pgvector 留到正式求职项目，具体表结构、索引和部署方式届时按业务需要设计。此前 PostgreSQL 仅为候选的讨论属于历史状态。
 - E2a JSON 是小规模编码验证记录。正式向量产物仍需明确原文关联、配置兼容性、完整性和过期拒绝；本次没有实现检索或启动下一阶段。
 
 ## 2026-10-29：E2a 采用百炼原生 HTTP 的小型独立客户端

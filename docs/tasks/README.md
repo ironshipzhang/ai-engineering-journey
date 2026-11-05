@@ -14,4 +14,6 @@
 | E2c：新问题编码与检索 | [任务书](rag/e2c/e2c-live-query-retrieval.md) | [离线实现及复核](rag/e2c/e2c-live-query-retrieval-handoff.md)，两题真实记录复核通过 |
 | E2d：资料问答与引用 | [任务书](rag/e2d/e2d-grounded-answer.md)、[两题真实审阅](rag/e2d/e2d-real-review-20261105.md) | [实施与复核交接](rag/e2d/e2d-grounded-answer-handoff.md)，168 项回归及两题真实主会话审阅通过；用户已确认符合预期，E2 本轮最小范围完成 |
 
+E1–E2d 的职责、入口、产物及验收边界汇总见 [任务 E 阶段交接](rag/e-stage-handoff.md)。E2 本轮范围已完成；E3 尚未开展，需后续选择和授权。
+
 源码、测试和本地结果位置见 [项目目录](../PROJECT_STRUCTURE.md)。2026-11-04 目录整理未启动 E2c；2026-11-05 离线实现状态见对应交接。

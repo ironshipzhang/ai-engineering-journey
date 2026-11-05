@@ -140,3 +140,57 @@ build 检查成功标志之外的全量范围、ID 集合、输入行、来源�
 源码位于 toy-agent/src，测试位于 toy-agent/tests；仍是简单脚本模块，执行脚本不需要安装本项目。默认配置定位到仓库 config/local.toml，数据和知识资料定位到 toy-agent/data 与 knowledge，评估输入定位到 toy-agent/evals/cases。以上路径按源码位置解析，用户传入 CLI 的相对路径仍按当前工作目录解释。测试通过显式 PYTHONPATH 导入 src，VS Code 使用同样的源码和测试目录。
 
 任务书/交接与本地产物按阶段分别归档到 docs/tasks 与 test-output。迁移不改变 E1 片段的相对 source_path、build_id、编码契约或向量内容，因此无需重新 prepare/build/编码；已有产物仍须通过原完整性与资料检查。历史评估结果移到 evals/results 并保留原字节。详见 [项目目录](PROJECT_STRUCTURE.md)。
+
+## E2c：新问题的单次编码与检索编排（2026-11-05）
+
+```text
+run_query(question, prepared, artifact_path, output, ...)
+  → 独占预留输出（函数与 CLI 都不能绕过）
+  → validate_texts / top-k 预检
+  → E2b load_checked（当前 E1 + 文档向量完整性/来源/过期）
+  → read_embedding_config → encoding_contract → 与产物契约完全一致
+  → request_embeddings([question], "query")，最多一次
+  → 提取 usage / request_id → 校验 HTTP 与向量
+  → E2b search（再次检查 E1）
+  → 单个 JSON 运行记录 + CLI 展示候选
+```
+
+`live_query_retrieval.py` 只编排既有 E2a 客户端和 E2b 公共 search，不复制余弦或绕过检查。没有 prepare/build、文档编码、生成或 Agent 工具调用。问题逐字发送并保存在 question/query.text/检索结果中；复用已有 8192 UTF-8 字节保护，不是精确 token 预算。endpoint 保守完全相同；运行参数不参与向量空间比较。密钥只在通过资料检查后由配置读取器用于认证，不写入结果。
+
+运行记录类型 e2c_live_query_retrieval、格式 1，保存问题、top-k、E1 build_id、文档摘要、实际非敏感 encoding、最多一项 requests、用量、耗时、已验证 query 和 E2b retrieval。没有完整文档向量副本。前置失败是 0 请求、0 已知 tokens、complete=true；发起请求后先置用量不完整，取得有效 usage 才置 true。用量先于向量校验记录，非法向量仍保留已知费用依据。编码成功后检索失败保留 query，retrieval=null，status=failed。
+
+所有流程异常按阶段输出固定安全诊断，不持久化原始异常、认证头或响应正文。输出在任何配置读取前以 x 模式预留；函数成功返回表示记录保存完成，流程是否成功看 status。输出预留/写入/刷新/关闭失败抛 OutputError（携带内存记录），CLI 退出 1。记录用 JSON Unicode 转义保存，以便无法 UTF-8 编码的问题也能留下失败记录；解析后文本不变，终端正常显示中文且不打印向量。
+
+继承单次网络操作 30 秒超时、无重试/重定向，并非总流程时限。结果结束时才写入，非事务保存；中断可能留下空/部分文件，关闭失败也可能已写出完整字节，仍以保存失败处理。检查基于读取快照，没有文件锁，不能检测供应商未声明的模型变更。文档产物是请求前加载的快照，search 复查该快照及当前 E1，不跟踪磁盘上活动索引指针。真实验证截至本日未授权/未执行；137 项离线测试通过。详见 [E2c 交接](tasks/rag/e2c/e2c-live-query-retrieval-handoff.md)。
+
+## E2d：固定检索后的资料问答（2026-11-05，离线实现）
+
+```text
+run_answer → 独占预留一个输出文件
+  → E2c execute_retrieval：问题/E1/E2b/两种配置/编码兼容前检
+  → 单次 query 编码 → E2b search（含 E1 复查）
+  → S1–S3 证据表 → 完整 messages ≤16 KiB → 生成前磁盘快照复查
+  → 单次 DeepSeek 无工具生成 → 先记录 usage，再检查 JSON/逐条引用
+  → 最终磁盘快照复查 → 发布 answer 并保存单个运行 JSON
+```
+
+`grounded_answer.py` 负责证据、独立提示词、回答校验和薄 CLI。`live_query_retrieval.execute_retrieval` 从原内部函数更名为复用阶段，新增可选的本地生成配置检查回调，在任何编码请求前运行。两个公共入口均先预留输出；E2c 的参数、结果结构与既有测试保持不变。复用 E2b 检索及 E1 检查，不重新准备资料或编码文档。
+
+生成复用现有 DeepSeek 安全密钥读取器和 known_usage；小型独立 urllib 适配器关闭重定向，不引入 SDK。地址/模型沿用现有常量，非思考、非流式、JSON 对象模式、800 输出 tokens、每次网络操作 30 秒；无工具、无重试/纠错/fallback。旧 SUMMARY_PROMPT、Agent 和评估路径未改。真实接口行为及当前费率仍须在后续授权运行前核实。
+
+证据表按排名赋予本次 S1/S2/S3，包含原文、chunk_id、document_id、标题/版本/章节、相对路径、原文行号、build_id 和向量摘要。问题与表作为一个序列化 user 数据消息，只有固定规则进入 system。生成上下文不发送检索分数或密钥；保留完整片段，超过 messages 序列化 UTF-8 16 KiB 时停在 context 阶段。此保护不是精确 token 限额；提示词隔离不保证抵御所有注入。
+
+回答只接受 answered 或 insufficient_evidence；前者每条 claim 必有本次 ID 和逐字连续引文，后者 claims=[] 并说明资料不足。使用 E1 严格 JSON 解码拒绝重复键及非标准常量；校验字段、类型、正常 stop 和无工具响应。本地 resolved_citations 由可信证据补齐，不信任模型生成的路径。引用存在性不等于语义支持；包括相反结论反例在内，semantic_review 均为 not_performed，CLI 只渲染通过校验且最终复查通过的回答。
+
+记录类型 `e2d_grounded_answer`、格式 1：顶层 question/status/error、evidence、answer、resolved_citations、semantic_review；embedding 子记录复用 E2c 全部问题向量/检索/请求/用量字段（其 succeeded 仅指检索阶段成功），generation 保存非敏感配置/提示词版本、messages_sent、请求和三类 token 用量。失败也保留成功前序阶段。evidence 在上下文构造时保存，只有 messages_sent=true 才表示已发起包含该表的生成尝试，不能证明服务端已收到。无有效 usage 时 complete=false，不能解释为免费；两供应商用量不混算。
+
+生成前后重新从磁盘 load_checked 并比较本次检索的内容摘要和 build_id，可发现运行期间原文变化或有效向量 JSON 被替换。最终复查失败 answer=null，保留合法响应的请求状态与已知用量。没有跨网络文件锁，瞬时修改再恢复或检查之后的变化仍可能不可见。输出独占创建、结束时一次保存，写入/刷新/关闭失败抛 OutputError 并退出 1，可能留空/部分文件，不重试付费请求；没有事务、fsync 或恢复承诺。
+
+166 项离线回归通过，所有新增传输均模拟；未执行真实生成或人工内容验收，E2 未宣布完成。见 [交接](tasks/rag/e2d/e2d-grounded-answer-handoff.md)。
+
+
+### 2026-11-05 E2d 后续真实验证状态
+
+此前离线实施段落描述当时未授权状态；其后用户明确确认两题预算，主会话完成 2 次 embedding + 2 次生成，无重试。两题均流程/保存成功，分别给出原文支持的迁移限制及资料不足拒答；两阶段用量完整。原始 JSON 不改写 semantic_review，独立的逐条内容核对、官方费率估算与未验证范围见 [真实验证与主会话审阅](tasks/rag/e2d/e2d-real-review-20261105.md)。本轮未修改源码，沿用前检修正后的 168 项离线回归；用户逐条人工终验未记录，不自动进入 E3。
+
+2026-11-05 后续用户已确认两题内容符合预期，E2 本轮最小范围收尾；前文未确认状态为过程记录。不增加调用或进入 E3。

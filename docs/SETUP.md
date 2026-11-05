@@ -444,3 +444,71 @@ PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-
 三个操作均可指定 `--knowledge` 和 `--max-chars`，默认沿用 E1（1200 字符）。search 自动检查 E1 与向量产物，不依赖用户先运行 check；`--output` 可省略，只展示终端结果。退出 0 表示操作成功，2 表示 E1 资料/处理配置过期，1 表示其他失败（包括构建关联、编码不兼容、损坏、缺失或覆盖拒绝）。不自动重建。
 
 本轮 119 项测试通过（103 + 16）。实际产物：`test-output/rag/e2b/e2b-vectors-20261104-001.json`（15 个文档向量）与 `test-output/rag/e2b/e2b-top3-20261104-001.json`。已有问题“数据库迁移失败后，重跑前需要检查什么？”第一名为迁移手册第 11–20 行，cosine≈0.84009560。分数不是正确率，其他问题尚未做真实语义验证。格式、兼容策略和完整观察见 [E2b 交接](tasks/rag/e2b/e2b-json-retrieval-handoff.md)。
+
+## E2c：新问题编码与独立检索（2026-11-05，离线实现完成）
+
+入口 `toy-agent/src/live_query_retrieval.py` 接收新问题，预留结果 → 检查资料与向量产物 → 校验配置兼容 → 最多一次 query 编码 → E2b 检索并复查资料。问题原样保留（包括首尾空白），不截断或增加前缀；文档向量不变。无新依赖。
+
+可立即执行的离线命令：
+
+```bash
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py'
+toy-agent/.venv/bin/python toy-agent/src/live_query_retrieval.py --help
+```
+
+本轮 137 项通过（既有 119 + E2c 18），传输全部模拟。另实际运行空问题 CLI，保存 `test-output/rag/e2c/offline-input-rejected-20261105-001.json`：退出 1、HTTP 尝试 0、用量 0 且 complete=true，失败阶段 input_validation。使用未读取的非真实配置路径；这不是成功检索或真实编码记录。
+
+**以下为待用户明确确认后才执行的付费命令示例，本轮未执行。** 运行前应重新核实地域/endpoint、接口限制与费率，按任务书确认两问题预算。输出父目录需存在，文件名必须全新；`--output` 必填。
+
+```bash
+mkdir -p test-output/rag/e2c
+toy-agent/.venv/bin/python toy-agent/src/live_query_retrieval.py \
+  --question '发现迁移部分执行或执行状态无法确认时，可以直接重跑原脚本吗？' \
+  --prepared test-output/rag/e1/20261028/build-001 \
+  --artifact test-output/rag/e2b/e2b-vectors-20261104-001.json \
+  --endpoint https://ws-kicad9ful35400g7.cn-beijing.maas.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding \
+  --top-k 3 --output test-output/rag/e2c/related-001.json
+```
+
+默认 config/local.toml，可用 --config 指定其他配置；--endpoint 仅覆盖本次地址，不改文件。--knowledge/--max-chars 沿用 E1。单次最多 1 个 query HTTP 尝试，不重试/切地域/重建；第二个真实问题没有自动批运行入口，须受确认后的总预算约束。
+
+CLI 退出 0 只表示检索流程及保存均成功；流程或保存失败返回 1，参数解析失败由 argparse 返回 2。JSON 的 status 表示流程结果，保存错误另由 CLI/OutputError 报告；不能仅凭文件存在判断成功。query 非空表示问题向量已校验，retrieval 非空才有候选；requests 的编码成功不代表后续检索成功。未知用量 complete=false 不能按零费用处理，保存失败后不要自动付费重跑。
+
+真实验证 **未授权、未执行**，不推断余额、费用或新问题检索效果。详见 [E2c 交接](tasks/rag/e2c/e2c-live-query-retrieval-handoff.md)。
+
+## E2d：依据资料回答与引用（2026-11-05，当前仅离线完成）
+
+无需新增依赖。可立即运行的离线命令：
+
+```bash
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py'
+toy-agent/.venv/bin/python toy-agent/src/grounded_answer.py --help
+```
+
+本轮 166 项通过（137 + 29），新测试使用临时资料、合成向量、假配置与模拟传输。空问题 CLI 的零请求失败记录为 `test-output/rag/e2d/offline-input-rejected-20261105-001.json`，退出 1，失败阶段 input_validation；这不是成功问答或真实编码记录。
+
+**以下命令会读取真实配置并产生费用，仅供另行明确授权后的操作参考，本轮未执行。** 必须先核实两个供应商当前官方接口/地域/限制/费率、复核配置兼容和预算。以下目录应已存在，输出必须使用未占用的新文件名，不覆盖已有结果。
+
+```bash
+mkdir -p test-output/rag/e2d
+toy-agent/.venv/bin/python toy-agent/src/grounded_answer.py \
+  --question '发现迁移部分执行或执行状态无法确认时，可以直接重跑原脚本吗？' \
+  --prepared test-output/rag/e1/20261028/build-001 \
+  --artifact test-output/rag/e2b/e2b-vectors-20261104-001.json \
+  --config config/local.toml \
+  --endpoint 'https://ws-kicad9ful35400g7.cn-beijing.maas.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding' \
+  --output test-output/rag/e2d/live-20261105-q1-001.json
+```
+
+`run_answer` 和 CLI 都固定 top-k=3、最多一次 query 编码和一次生成；--endpoint 只传递已确认百炼地址，不改配置。生成沿用现有 DeepSeek 地址/模型及 model.api_key，不接工具。默认资料及切块上限沿用 E1，可显式 --knowledge / --max-chars；资料或编码不匹配时失败，不自动重建。普通入口继承 E2c 8192 UTF-8 字节问题上限；后续两题验证的 ≤256 字节、1024 维是另行核对的运行预算，不宣称 CLI 已自动实现全局预算管理。完整 messages 最大 16 KiB、生成最多 800 tokens。
+
+退出 0 表示流程成功（包括 insufficient_evidence），不是语义质量通过；失败退出 1，记录安全阶段并保留已知用量。输出预留失败时零请求；写入/刷新/关闭失败可能已经计费，不自动重跑。结果中 embedding 与 generation 分别记用量及完整性。引用仅校验本次来源和原文存在，semantic_review=not_performed；真实验收还需逐条比对 claim—quote—完整片段及前提。
+
+两题最多 2 次 embedding + 2 次生成仍为待确认提案，第一题包含保存和人工核对均成功才能继续第二题；任何失败停止，不补跑、不自动调词。E2 完成判断由主会话在真实验收之后作出。
+
+
+### 2026-11-05 E2d 后续真实验证状态
+
+此前离线实施段落描述当时未授权状态；其后用户明确确认两题预算，主会话完成 2 次 embedding + 2 次生成，无重试。两题均流程/保存成功，分别给出原文支持的迁移限制及资料不足拒答；两阶段用量完整。原始 JSON 不改写 semantic_review，独立的逐条内容核对、官方费率估算与未验证范围见 [真实验证与主会话审阅](tasks/rag/e2d/e2d-real-review-20261105.md)。本轮未修改源码，沿用前检修正后的 168 项离线回归；用户逐条人工终验未记录，不自动进入 E3。
+
+2026-11-05 后续用户已确认两题内容符合预期，E2 本轮最小范围收尾；前文未确认状态为过程记录。不增加调用或进入 E3。

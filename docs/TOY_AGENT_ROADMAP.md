@@ -1,6 +1,6 @@
 # Toy Agent 完整学习路线
 
-更新时间：2026-11-04。此路线描述计划，不代表未来功能已实现。
+更新时间：2026-11-05。此路线描述计划，不代表未来功能已实现。
 
 目标：能解释并演示模型调用、工具执行、有界循环、任务状态、检索、MCP 和评估之间的关系。使用小规模虚构数据学习机制；业务内容质量优化留到有实际需求与数据的后续工程项目。
 
@@ -24,9 +24,11 @@
    - E1：已完成并通过主会话验收。三份虚构资料经 markdown-it-py 标题映射产生原文片段及来源，prepare/check 生成并检查确定性构建清单；手动全量准备、拒绝覆盖、输入复查和完整性校验已验证。主会话独立回归 88 项通过，实跑 15 个片段，两份独立重建与原构建一致；产物是 prepared corpus，不是真实向量索引。见 [E1 任务书](tasks/rag/e1/e1-corpus-preparation.md) 与 [实施交接](tasks/rag/e1/e1-corpus-handoff.md)。
    - E2：embedding、检索与有来源的回答。先做 [E2a 远程编码接入](tasks/rag/e2a/e2a-remote-embedding.md)：用户选择百炼 text-embedding-v4；E2a 已通过主会话复核。北京业务空间 endpoint 已确认，唯一一次真实验证成功：15 + 1 个 1024 维向量、3 请求、1850 tokens；103 项离线测试通过。见 [E2a 交接](tasks/rag/e2a/e2a-embedding-handoff.md)。不部署本地模型；完整向量索引、检索和生成回答分后续任务推进。
    - E2b：2026-11-04 JSON 文档向量产物与独立检索已通过主会话复核。复用 E2a 向量，构建原文/来源关联与完整性摘要，检索前检查 E1 过期及编码兼容，逐向量余弦排序。主会话独立回归 119 项通过，已有问题 top-3 演示零 API 完成；仅单问题观察，无回答生成。见 [E2b 交接](tasks/rag/e2b/e2b-json-retrieval-handoff.md)。
-   - E2c：已准备 [新问题编码与独立检索任务书](tasks/rag/e2c/e2c-live-query-retrieval.md)，尚未实施。单次 query 编码复用 E2b 文档向量；真实验证问题、次数与预算待用户确认。生成回答与来源引用另行立项。
+   - E2c：2026-11-05 已按 [任务书](tasks/rag/e2c/e2c-live-query-retrieval.md) 完成离线实现并通过主会话复核，独立完整回归 137 项通过。见 [交接](tasks/rag/e2c/e2c-live-query-retrieval-handoff.md)。单次 query 编码复用 E2b 文档向量；2026-11-05 用户授权后两题真实链路均成功，累计 2 次请求/30 tokens，主会话已核对原文来源并复算检索一致；范围外问题只返回候选，无住宿标准依据。生成回答与来源引用另行立项。
+   - E2d：2026-11-05 已按 [任务书](tasks/rag/e2d/e2d-grounded-answer.md) 完成离线实现和前检修正，主会话独立回归 168 项通过，见 [交接](tasks/rag/e2d/e2d-grounded-answer-handoff.md)。逐条结论绑定引文，区分引用存在性与人工语义支持；真实两题经用户确认后已执行，结果见下一条；不推断通用效果验收。
+   - 2026-11-05 E2d 已完成授权两题真实运行与主会话逐条内容审阅，累计 2 次 embedding + 2 次生成。相关题引用支持结论，范围外题明确资料不足；[验收记录](tasks/rag/e2d/e2d-real-review-20261105.md) 区分程序校验、主会话 AI 辅助语义审阅与用户后续的内容终验确认。预算用完，用户已确认内容符合预期，E2 本轮最小范围完成，不外推通用准确率、不自动进入 E3。
    - E3：接入工具注册表，记录检索轨迹；区分检索执行成功与证据足够，完成条件和引用契约待设计。
-   - E1/E2a/E2b 已验收；Toy 全程只用 JSON 保存向量及元数据，PostgreSQL 与 pgvector 留到正式求职项目；后续新问题在线编码、生成问答和 E3 尚未授权实施。前序讨论见 [E 讨论与待定项](tasks/rag/discussions/rag-design-discussion.md) 及 [场景与生命周期](tasks/rag/discussions/rag-scenario-and-lifecycle-discussion.md)；自动监听、增量更新和更完整的恢复机制留待求职项目按业务要求设计。
+   - E1/E2a/E2b 已验收；Toy 全程只用 JSON 保存向量及元数据，PostgreSQL 与 pgvector 留到正式求职项目；E2c 离线与两题真实记录已通过复核；E2d 离线复核和授权两题主会话审阅通过，用户终验已通过，E2 本轮最小范围完成，不授权 E3。前序讨论见 [E 讨论与待定项](tasks/rag/discussions/rag-design-discussion.md) 及 [场景与生命周期](tasks/rag/discussions/rag-scenario-and-lifecycle-discussion.md)；自动监听、增量更新和更完整的恢复机制留待求职项目按业务要求设计。
 4. **最小 MCP 接入**：将一个已理解的只读工具放入本地 MCP Server，由 Agent 的 MCP Client 调用；保持直接调用路径用于比较。SDK、传输和依赖在开工时核实。
 5. **失败策略与安全边界**：基于当前失败停止机制，补充分类、只读幂等请求的有界重试与等待策略；判断超时的不确定性。限流/余额不盲目重试，fallback 不伪造成功；用离线异常验证，不以真实故障练习。
 6. **端到端评估**：复用运行轨迹，在少量完整任务上检查正确取数、工具选择、停止、检索来源、格式与内容；对独立样例及必要重复采样控制预算。每新增机制先局部测试，不等到最后才验证。

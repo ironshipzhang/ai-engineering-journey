@@ -34,7 +34,11 @@ E1 已完成并通过主会话验收：三份虚构资料经 markdown-it-py 生�
 
 E2a 远程编码接入已通过主会话复核：百炼 text-embedding-v4 独立客户端完成 15 个文档和 1 个问题的 1024 维编码验证；完整离线回归 103 项通过。当前 JSON 是编码验证记录，正式向量产物与检索、问答尚未实现。详见 [E2a 交接](docs/tasks/rag/e2a/e2a-embedding-handoff.md)。Toy 全程只用 JSON 保存原文关联、向量及元数据，不引入数据库服务；PostgreSQL 与 pgvector 留到正式求职项目。
 
-E2b JSON 向量产物与独立检索已通过主会话复核：15 个文档向量与 E1 原文/来源关联，检索时检查完整性、过期状态和编码兼容性，返回余弦 top-k 候选。完整离线回归 119 项通过；已有问题的离线演示已核对。新问题在线编码、生成回答及 Agent 检索工具尚未实现。详见 [E2b 交接](docs/tasks/rag/e2b/e2b-json-retrieval-handoff.md)。
+E2b JSON 向量产物与独立检索已通过主会话复核：15 个文档向量与 E1 原文/来源关联，检索时检查完整性、过期状态和编码兼容性，返回余弦 top-k 候选。完整离线回归 119 项通过；已有问题的离线演示已核对。新问题编码见后续 E2c；生成回答及 Agent 检索工具尚未实现。详见 [E2b 交接](docs/tasks/rag/e2b/e2b-json-retrieval-handoff.md)。
+
+E2c 新问题编码与检索已通过离线及两题真实记录复核：此前 137 项机制测试通过，真实两题合计 2 次请求、30 tokens；相关题命中迁移限制条款，差旅题候选无法支持住宿标准。E2d 前检修正后独立回归 168 项通过，两题授权真实运行及主会话内容审阅见下。详见 [E2c 交接](docs/tasks/rag/e2c/e2c-live-query-retrieval-handoff.md)。
+
+E2 本轮最小范围已完成，用户确认内容符合预期。E2d 两题真实端到端运行与主会话逐条内容审阅已完成：迁移题给出有原文支持的限制与引用，差旅题说明本次资料不足。程序引用校验、主会话 AI 辅助语义审阅及用户最终确认分别记录，不以两题结果代表通用准确率。详见 [两题验收记录](docs/tasks/rag/e2d/e2d-real-review-20261105.md)。
 
 默认运行（会联网）：`toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py`，等价于 `--project-id xingqiao --task summary`；问题摘要可用 `--project-id yunfan --task issues`，仍支持 `--config` 和 `--output`。
 
@@ -50,3 +54,5 @@ origin 为 git@github.com:ironshipzhang/ai-engineering-journey.git；SSH 认证�
 使用 VS Code 打开整个仓库目录，Python 解释器配置为 toy-agent/.venv。
 
 模型入口默认读取 `config/local.toml`，不再需要 `--key-file`；可用 `--config` 指定其他路径。首次使用将 [config.example.toml](config.example.toml) 复制到该位置并在本地填写密钥，权限设为 0600，已有配置不覆盖；步骤见 [SETUP.md](docs/SETUP.md)。本地配置为明文且被 Git 忽略，示例不含真实密钥；忽略规则不会移除已跟踪文件。当前配置迁移已完成，45 项离线测试通过。
+
+2026-11-05 E2d 新增独立 `grounded_answer.py`：复用问题编码与检索，按 claim 校验本次来源 ID 和逐字引文；语义支持仍需人工评审。实现、失败边界和真实验证记录见 [E2d 交接](docs/tasks/rag/e2d/e2d-grounded-answer-handoff.md)。

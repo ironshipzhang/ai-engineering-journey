@@ -194,3 +194,48 @@ run_answer → 独占预留一个输出文件
 此前离线实施段落描述当时未授权状态；其后用户明确确认两题预算，主会话完成 2 次 embedding + 2 次生成，无重试。两题均流程/保存成功，分别给出原文支持的迁移限制及资料不足拒答；两阶段用量完整。原始 JSON 不改写 semantic_review，独立的逐条内容核对、官方费率估算与未验证范围见 [真实验证与主会话审阅](tasks/rag/e2d/e2d-real-review-20261105.md)。本轮未修改源码，沿用前检修正后的 168 项离线回归；用户逐条人工终验未记录，不自动进入 E3。
 
 2026-11-05 后续用户已确认两题内容符合预期，E2 本轮最小范围收尾；前文未确认状态为过程记录。不增加调用或进入 E3。
+
+## E3：单个检索工具往返（2026-11-08，离线实现待复核）
+
+```text
+run_agent → 独占预留输出 → preflight_retrieval（本地检查两配置/资料/编码兼容）
+  → DeepSeek routing（只提供 search_knowledge，默认 auto）
+  → 校验单个调用 → 核对初始磁盘快照 → Registry.execute
+  → execute_retrieval：单次 query 编码 + E2b search → 再次核对快照
+  → assistant.tool_calls + tool.tool_call_id（本次 evidence）
+  → messages 大小检查 + 生成前磁盘复查
+  → DeepSeek answer（不提供工具）→ E2d validate_answer → 最终磁盘复查
+  → 保存单个运行记录
+```
+
+独立 `retrieval_agent.py` 复用旧 ToolRegistration 数据结构，维护自己的单项 TOOL_REGISTRY，不修改旧项目 Registry/摘要 Loop。注册项关联 schema、validate_query、search_knowledge；模型只能提供与实际问题逐字一致的 query，不能指定路径、top-k 或改写问题。call_id 采用 1–128 位 ASCII 字母/数字/下划线/连字符的明确本地约束。第一轮无合法调用停止；若正常 stop 且没有调用，completion_gate/retrieval_not_requested，零 embedding，不接受无依据回答。次轮再次要求工具直接拒绝，不执行、不追加请求。
+
+E2c 前检抽为 preflight_retrieval，仍由原 execute_retrieval 调用；E3 在首次模型请求前调用它，在实际工具中仍复用完整 execute_retrieval，重复本地检查是当前小型 Toy 的简化。E2d 生成凭据检查抽为 read_generation_key；受控 request_answer 增加仅关键字 tools=None，默认 payload 无工具，保持 E2d 行为。E2c/E2d 既有测试及旧 Agent 源码/提示词未改，无依赖变化。
+
+首轮 system 描述协议，question 在 user 数据。次轮固定 system 复用 E2d 回答契约并说明 evidence 位于 tool 数据，保留原 user 问题和合法 assistant 调用，只追加一条对应 tool 消息；首轮附带自然语言不作为结论或证据。两轮序列化 messages 都限制 16 KiB UTF-8，不截断；工具 schema 不计入这个既有 messages 限额。工具只返回 question/candidates_only/evidence，不返回文档向量、密钥或隐藏生成。提示词/消息隔离不等于真实注入鲁棒性验证。
+
+每次最多 2 次 DeepSeek + 1 次 query 编码（失败也计数）。沿用非思考、非流式、JSON 对象、800 输出 tokens、每次网络操作 30 秒、无重试/重定向/fallback。接口参数已对照 [DeepSeek 官方 Chat Completions 文档](https://api-docs.deepseek.com/api/create-chat-completion/)：存在 tools 时默认 auto，次轮不提供 tools；没有发探测或真实模型请求。
+
+记录类型 e3_retrieval_tool_run、格式 1。initial_snapshot 保存 build_id/向量摘要/编码契约；embedding 是 E2c 子记录，未执行时 status=failed 表示该阶段未完成，需结合请求数与 trace 判断；generation 含非敏感配置、逐轮阶段/HTTP/finish_reason/usage 与服务汇总。usage 先于工具/回答校验提取，任一轮缺失则汇总 complete=false，后续有效用量不能覆盖未知状态。response_received 只代表收到可解析的 HTTP 200，validated 表示对应工具/回答校验通过，不代表语义支持。
+
+trace 区分 tool_proposal、参数 validation 和实际 tool_execution；tool_executions 包含失败的工具执行尝试。合法调用与 tool_exchange 保留 call_id，sent_to_model 仅表示已发起携带该结果的第二轮尝试，不证明服务端收到。无效原始参数/错误正文/异常不保存。失败停止，answer=null，保留已有向量、候选与用量；最终复查通过后才赋 answer，semantic_review 始终 not_performed。
+
+快照在初始前检、工具执行前、检索后、最终生成前及答复前检查；重新读取磁盘向量产物，不只比较内存对象。检查无跨网络锁，仍不能保证发现瞬时修改后恢复或检查之后的变化。输出结束时写入，保存失败抛 OutputError/CLI 退出 1，可能留下空/部分文件，不承诺事务或恢复。
+
+193 项离线回归通过（原 168 + E3 25），仅模拟传输；真实模型工具选择、两题内容及供应商失败仍未验证。见 [E3 交接](tasks/rag/e3/e3-retrieval-tool-handoff.md)。
+
+
+### 2026-11-08 E3 拒绝原因诊断补充
+
+首次真实调用在 tool_validation 被拒绝，旧记录不能细分原因。后续仅为 E3 增加固定本地原因码（error.reason_code、ended trace；存在 tool_proposal 时同步标记），分别覆盖响应/消息、finish_reason、调用数量/结构/ID/类型/名称、参数与 query 绑定；未知异常固定为 validation_failed。CLI 输出固定说明与原因码，不落盘非法值、原始响应或异常文字。正常未检索门禁及既有所有接受/拒绝规则、提示词、请求预算保持不变。新增可选诊断字段不回填旧 JSON，历史真实原因仍未知。196 项离线回归通过，真实复测未授权/未执行；原因码明细见 [E3 交接](tasks/rag/e3/e3-retrieval-tool-handoff.md)。
+
+### 2026-11-08 E3 受控结构诊断与传输 index 规范化
+
+用户后续授权持续修正直至真实测试通过。先增加仅含固定对象层级、已知必需字段缺失列表及多字段布尔标志的安全 details；-003 真实诊断确认调用外层只多了 index:0。现在仅兼容可选整数 0 的 index，未知额外字段和其余类型/值仍拒绝（call_index_invalid），校验后显式构造 id/type/function 并移除 index；trace 记录 transport_index_removed。function 字段、query、单工具/请求上限、提示词和共享 E2 行为保持。
+
+官方文档在流式调用中列出 index，非流式实际携带该字段是本次观测；不泛化信任所有供应商额外字段。最终 199 项离线回归通过，-004 两题真实链路及实现会话内容核对通过。原始 JSON 审阅状态不回填，仍待主会话复核/用户终验；失败记录及原因码演进保留，详见 [E3 真实记录](tasks/rag/e3/e3-real-review-20261108.md)。
+
+
+### 2026-11-08 任务 E 最终验收
+
+主会话独立复核的 199 项回归及两份 E3 -004 真实结果/内容核对均通过，用户已最终确认，E1–E3 的本轮学习范围验收完成。前文离线/待确认状态为历史过程；原始 JSON 的 semantic_review=not_performed 保持不变，程序可追溯校验、主会话内容审阅与用户终验分别记录。不代表自动语义验证、通用准确率、注入鲁棒性、生产可靠性或 MCP 已验收，Toy 继续使用 JSON。见 [最终交接](tasks/rag/e-stage-handoff.md)。本次只改文档，未重复回归或模型调用。

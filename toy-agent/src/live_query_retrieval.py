@@ -44,15 +44,10 @@ def new_result(question, top_k) -> dict:
     }
 
 
-def execute_retrieval(result: dict, question: str, top_k: int, prepared: Path, artifact_path: Path,
-                      knowledge: Path, max_chars: int, config_path: Path, endpoint: str | None,
-                      *, check_generation_config=None) -> None:
-    """Shared in-memory stage; callers must reserve output first. Never rebuilds documents.
-
-    E2d supplies a local generation-config check so both configurations fail before encoding.
-    The optional check must not send requests or publish output.
-    """
-    started = time.monotonic()
+def preflight_retrieval(result: dict, question: str, top_k: int, prepared: Path, artifact_path: Path,
+                        knowledge: Path, max_chars: int, config_path: Path, endpoint: str | None,
+                        *, check_generation_config=None):
+    """Local-only shared preflight, after output reservation. Returns trusted request inputs or None."""
     stage = "input_validation"
     try:
         embedding.validate_texts([question], "query")
@@ -72,6 +67,26 @@ def execute_retrieval(result: dict, question: str, top_k: int, prepared: Path, a
         result["encoding"] = contract
         retrieval.require(contract == artifact["encoding"], "编码契约不兼容")
 
+        return artifact, config, contract
+    except Exception:
+        category, message = ERRORS[stage]
+        result["error"] = {"stage": stage, "category": category, "message": message}
+        return None
+
+
+def execute_retrieval(result: dict, question: str, top_k: int, prepared: Path, artifact_path: Path,
+                      knowledge: Path, max_chars: int, config_path: Path, endpoint: str | None,
+                      *, check_generation_config=None) -> None:
+    """Shared one-query stage; callers must reserve output first. Never rebuilds documents."""
+    started = time.monotonic()
+    stage = "input_validation"
+    try:
+        inputs = preflight_retrieval(result, question, top_k, prepared, artifact_path, knowledge,
+                                     max_chars, config_path, endpoint,
+                                     check_generation_config=check_generation_config)
+        if inputs is None:
+            return
+        artifact, config, contract = inputs
         stage = "request"
         event = {"attempt": 1, "text_type": "query", "input_count": 1,
                  "status": "failed", "http_status": None, "request_id": None,

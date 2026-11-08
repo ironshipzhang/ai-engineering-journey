@@ -40,6 +40,8 @@ E2c 新问题编码与检索已通过离线及两题真实记录复核：此前 
 
 E2 本轮最小范围已完成，用户确认内容符合预期。E2d 两题真实端到端运行与主会话逐条内容审阅已完成：迁移题给出有原文支持的限制与引用，差旅题说明本次资料不足。程序引用校验、主会话 AI 辅助语义审阅及用户最终确认分别记录，不以两题结果代表通用准确率。详见 [两题验收记录](docs/tasks/rag/e2d/e2d-real-review-20261105.md)。
 
+2026-11-08 E3 新增模型调用只读检索工具。经真实失败诊断及 index:0 传输兼容修正后，主会话此前独立完整回归 199 项通过，两题真实链路/内容核对及用户最终确认均通过，任务 E 本轮范围验收完成；失败过程保留，未推进下一阶段。详见 [E3 交接](docs/tasks/rag/e3/e3-retrieval-tool-handoff.md) 与 [真实记录](docs/tasks/rag/e3/e3-real-review-20261108.md)。
+
 默认运行（会联网）：`toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py`，等价于 `--project-id xingqiao --task summary`；问题摘要可用 `--project-id yunfan --task issues`，仍支持 `--config` 和 `--output`。
 
 任务 C 的已完成实现范围见 [结果与执行轨迹任务说明](docs/tasks/agent/run-result-and-trace.md)。

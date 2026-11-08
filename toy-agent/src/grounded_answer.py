@@ -37,11 +37,13 @@ def generation_config():
             "max_messages_utf8_bytes": MAX_MESSAGES_BYTES}
 
 
-def request_answer(api_key: str, messages: list[dict]) -> embedding.Reply:
-    """Small no-tools adapter; no redirects/retries. Never returns raw transport errors."""
+def request_answer(api_key: str, messages: list[dict], *, tools=None) -> embedding.Reply:
+    """Bounded adapter; optional E3 tools, no tools by default, no redirects/retries."""
     payload = {"model": deepseek.MODEL, "messages": messages,
                "thinking": {"type": "disabled"}, "stream": False,
                "max_tokens": 800, "response_format": {"type": "json_object"}}
+    if tools is not None:
+        payload["tools"] = tools
     request = Request(deepseek.API_URL, data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
                       headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"},
                       method="POST")
@@ -127,15 +129,20 @@ def check_snapshot(record, prepared, artifact_path, knowledge, max_chars):
                       and current["e1_build_id"] == record["e1_build_id"], "检索快照已变化")
 
 
+def read_generation_key(config_path: Path) -> str:
+    """Shared E2d/E3 local header validation; never exposes credentials in diagnostics."""
+    key = deepseek.read_config_api_key(config_path)
+    retrieval.require(bool(key) and all("!" <= character <= "~" for character in key),
+                      "生成密钥须为非空可打印 ASCII，且不得包含空白或控制字符")
+    return key
+
+
 def execute(result, question, prepared, artifact_path, knowledge, max_chars, config_path, endpoint):
     stage = "configuration"
     key = None
     def check_generation_config():
         nonlocal key
-        key = deepseek.read_config_api_key(config_path)
-        # E2d must reject locally invalid header credentials before paying for embedding.
-        retrieval.require(bool(key) and all("!" <= character <= "~" for character in key),
-                          "生成密钥须为非空可打印 ASCII，且不得包含空白或控制字符")
+        key = read_generation_key(config_path)
     query_run = result["embedding"]
     live.execute_retrieval(query_run, question, 3, prepared, artifact_path, knowledge,
                            max_chars, config_path, endpoint, check_generation_config=check_generation_config)

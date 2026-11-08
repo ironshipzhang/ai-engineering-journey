@@ -512,3 +512,44 @@ toy-agent/.venv/bin/python toy-agent/src/grounded_answer.py \
 此前离线实施段落描述当时未授权状态；其后用户明确确认两题预算，主会话完成 2 次 embedding + 2 次生成，无重试。两题均流程/保存成功，分别给出原文支持的迁移限制及资料不足拒答；两阶段用量完整。原始 JSON 不改写 semantic_review，独立的逐条内容核对、官方费率估算与未验证范围见 [真实验证与主会话审阅](tasks/rag/e2d/e2d-real-review-20261105.md)。本轮未修改源码，沿用前检修正后的 168 项离线回归；用户逐条人工终验未记录，不自动进入 E3。
 
 2026-11-05 后续用户已确认两题内容符合预期，E2 本轮最小范围收尾；前文未确认状态为过程记录。不增加调用或进入 E3。
+
+## E3：模型请求只读资料检索（2026-11-08，离线实现待复核）
+
+无新增依赖。离线命令：
+
+```bash
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py'
+toy-agent/.venv/bin/python toy-agent/src/retrieval_agent.py --help
+```
+
+完整 193 项通过（168 + 25），新增测试仅用临时资料、合成向量、假配置和模拟传输。另实跑空问题前检，退出 1，两服务/工具执行均 0，保存 `test-output/rag/e3/offline-input-rejected-20261108-001.json`。此文件已存在，不能覆盖重跑；不是成功检索或真实模型记录。
+
+**以下命令会读取真实配置并计费，仅供后续明确授权后参考，本轮未执行。** 先复核官方接口/模型/地域/费率及预算，使用未占用的新输出名：
+
+```bash
+mkdir -p test-output/rag/e3
+toy-agent/.venv/bin/python toy-agent/src/retrieval_agent.py \
+  --question '发现迁移部分执行或执行状态无法确认时，可以直接重跑原脚本吗？' \
+  --prepared test-output/rag/e1/20261028/build-001 \
+  --artifact test-output/rag/e2b/e2b-vectors-20261104-001.json \
+  --config config/local.toml \
+  --endpoint 'https://ws-kicad9ful35400g7.cn-beijing.maas.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding' \
+  --output test-output/rag/e3/live-20261108-q1-001.json
+```
+
+公共函数为 `run_agent(question, prepared, artifact_path, output, *, config_path=..., endpoint=None, knowledge=..., max_chars=1200)`。参数语义沿用 E2d，无 top-k 开关（固定 3）；最多两次 DeepSeek 和一次百炼 query，无重试，不编码文档。实际模型必须逐字复制问题到 query；未提出检索是 completion_gate 失败，不能当成资料不足回答。
+
+正常流程返回并保存运行记录；预留/保存失败抛 OutputError。CLI 成功退出 0（含 insufficient_evidence），流程/文件失败退出 1；参数解析错误退出 2。CLI 显示回答、引用、两服务用量和工具轨迹，不打印向量。status=succeeded 只表示流程与引用存在性检查通过，semantic_review=not_performed，仍需人工核对。
+
+真实两题最多 4 次 DeepSeek + 2 次 embedding 仍为未授权提案；每题 ≤256 UTF-8 字节、1024 维属于将来核对的验证预算，入口继承 8192 字节问题保护，不承诺跨多次人工运行的总预算控制。首题保存及内容审阅通过才继续第二题，任一步失败停止、不补跑。详见 [E3 交接](tasks/rag/e3/e3-retrieval-tool-handoff.md)。
+
+### 2026-11-08 E3 最新修正与实际结果
+
+前文“未授权/未执行”为初次实施时状态；其后真实失败、原因码诊断及用户授权持续修正均有独立记录。最终修正兼容实际非流式调用中的 index:0，严格校验后移除该传输字段，不放宽 query 或工具参数。最新完整回归 199 项通过。
+
+成功真实结果为 `test-output/rag/e3/live-20261108-q1-004.json`、`live-20261108-q2-004.json`，两题各 2 次 DeepSeek + 1 次 embedding，回答/拒答和引用经实现会话核对通过，待主会话复核。-001/-002/-003 失败记录保留；原命令中的 -001 输出名已占用，不可直接重跑覆盖。当前调用结束，任何后续新运行应重新确定目的和预算，不能把此命令当作持续调用指令。详见 [真实记录](tasks/rag/e3/e3-real-review-20261108.md)。
+
+
+### 2026-11-08 任务 E 收尾状态
+
+主会话已独立验证 199 项完整回归及 E3 两题真实记录，用户最终确认通过，任务 E 的既定学习范围完成。前文待复核/待授权说明保留为当时状态；本次文档收尾不重复运行测试或 API。原始记录不改，验收依据及后续边界见 [E 阶段最终交接](tasks/rag/e-stage-handoff.md)。MCP 等后续任务尚未开展，需另行选择和授权。

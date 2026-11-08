@@ -34,6 +34,7 @@ ai_engineer/
 │       ├── agent/            C、D、D2 任务与交接
 │       └── rag/
 │           ├── e-stage-handoff.md  E1–E3 最终交接与验收边界
+│           ├── e3-deepseek-interaction-walkthrough.md  两轮交互及 JSON 回顾
 │           ├── discussions/  概念、场景及生命周期讨论
 │           ├── e1/           E1 任务与交接
 │           ├── e2a/          E2a 任务与交接

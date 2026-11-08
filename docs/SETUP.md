@@ -553,3 +553,28 @@ toy-agent/.venv/bin/python toy-agent/src/retrieval_agent.py \
 ### 2026-11-08 任务 E 收尾状态
 
 主会话已独立验证 199 项完整回归及 E3 两题真实记录，用户最终确认通过，任务 E 的既定学习范围完成。前文待复核/待授权说明保留为当时状态；本次文档收尾不重复运行测试或 API。原始记录不改，验收依据及后续边界见 [E 阶段最终交接](tasks/rag/e-stage-handoff.md)。MCP 等后续任务尚未开展，需另行选择和授权。
+
+
+## 2026-11-08 F：独立项目 MCP 入口
+
+F1/F2 离线实现已通过 219 项完整回归，待主会话复核。依赖新增官方 `mcp==2.3.0`，精确传递版本见 `toy-agent/uv.lock`；沿用 Python 3.12/macOS arm64 的项目虚拟环境。
+
+```sh
+.tools/bin/uv sync --project toy-agent --locked
+# 离线完整回归：含真实本地 MCP 子进程，不调用模型 API
+PYTHONPATH=toy-agent/src toy-agent/.venv/bin/python -m unittest discover -s toy-agent/tests -p 'test_*.py'
+# 只查看参数，不读密钥、不调用 API
+toy-agent/.venv/bin/python toy-agent/src/mcp_project_agent.py --help
+```
+
+以下是会调用 DeepSeek 的命令说明，需另行确认真实演示任务与预算后执行：
+
+```sh
+# direct 为默认路径，只支持 summary
+toy-agent/.venv/bin/python toy-agent/src/mcp_project_agent.py --transport direct --project-id xingqiao --task summary
+# MCP：使用固定虚拟环境解释器和受控 Server，结果文件须不存在
+mkdir -p test-output/mcp/f
+toy-agent/.venv/bin/python toy-agent/src/mcp_project_agent.py --transport mcp --project-id xingqiao --task summary --output test-output/mcp/f/live-001.json
+```
+
+支持 `--config`，不需要 embedding 配置或 E 产物。每次最多两次模型 HTTP 尝试、一次业务适配调用；输出独占预留、失败非零、无重试或 fallback。messages 限 16 KiB，网络每次 30 秒，MCP 准备/发现/调用分别 10 秒；清理使用 SDK 的有界终止机制，完成后按 10 秒阈值判定。超时含义、依赖许可证、测试与 USD 0.02 真实提案见 [F 交接](tasks/mcp/f-minimal-mcp-handoff.md)。旧入口命令保持原义。

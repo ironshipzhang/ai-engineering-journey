@@ -32,6 +32,7 @@ ai_engineer/
 │   └── tasks/
 │       ├── README.md         任务索引
 │       ├── agent/            C、D、D2 任务与交接
+│       ├── mcp/              F 的 MCP 任务书及离线实现交接
 │       └── rag/
 │           ├── e-stage-handoff.md  E1–E3 最终交接与验收边界
 │           ├── e3-deepseek-interaction-walkthrough.md  两轮交互及 JSON 回顾
@@ -47,6 +48,7 @@ ai_engineer/
     │   ├── c/                run-001、run-002
     │   ├── d/                D 的真实及模拟结果
     │   └── d2/               D2 结果
+    ├── mcp/f/               F 的本地验证与后续授权真实结果（按需创建）
     └── rag/
         ├── e1/20261028/      正常 build-001 与故意损坏的 corrupt-copy
         ├── e2a/             编码验证记录
@@ -83,3 +85,7 @@ VS Code 保持使用 `toy-agent/.venv`；`python.analysis.extraPaths` 指向 src
 - 新任务书、交接、源码和输出按上述职责归档。输出目录仅在需要写入时创建；Git 不跟踪空目录或本地 test-output。
 
 任务入口见 [任务索引](tasks/README.md)，实际命令见 [SETUP](SETUP.md)。
+
+## 2026-11-08 F 新增入口
+
+`toy-agent/src/` 新增 `project_mcp_contract.py`、`project_mcp_server.py`、`project_mcp_client.py` 和 `mcp_project_agent.py`；测试在 `toy-agent/tests/test_project_mcp.py`、`test_mcp_project_agent.py`，故障子进程夹具为同目录 `mcp_fault_server.py`。F 任务书及交接在 `docs/tasks/mcp/`，本地安全样例在忽略目录 `test-output/mcp/f/`。SDK 是依赖，不新增项目打包或服务部署。

@@ -5,4 +5,5 @@ description = "Small experiments for understanding LLM applications and agent me
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "markdown-it-py==4.2.0",
+    "mcp==2.3.0",
 ]

@@ -239,3 +239,14 @@ trace 区分 tool_proposal、参数 validation 和实际 tool_execution；tool_e
 ### 2026-11-08 任务 E 最终验收
 
 主会话独立复核的 199 项回归及两份 E3 -004 真实结果/内容核对均通过，用户已最终确认，E1–E3 的本轮学习范围验收完成。前文离线/待确认状态为历史过程；原始 JSON 的 semantic_review=not_performed 保持不变，程序可追溯校验、主会话内容审阅与用户终验分别记录。不代表自动语义验证、通用准确率、注入鲁棒性、生产可靠性或 MCP 已验收，Toy 继续使用 JSON。见 [最终交接](tasks/rag/e-stage-handoff.md)。本次只改文档，未重复回归或模型调用。
+
+
+## 2026-11-08 F：独立的项目 MCP 往返（离线完成）
+
+新增 `mcp_project_agent.py`：输入/输出预留/安全生成配置/项目范围前检 → direct 本地适配器，或官方 SDK ClientSession → stdio Server → get_project → 共同结果契约 → 与模型调用 ID 对应的 tool 消息 → 第二次无工具生成 → 严格三字段摘要。最多两次模型尝试、一次业务调用，独立于旧五轮 Agent 与 E2/E3；无自动重试或 fallback。
+
+业务仍由 deepseek_summary.load_projects/get_project 实现。Server 生命周期只读一次快照，下一次运行才看到文件更新；宿主另作范围及保守大小前检，没有跨进程原子快照。只暴露 get_project，发现时按固定描述与 schema 校验，向模型使用本地 schema。SDK 负责协议与 ID，模型 tool_call_id 与本地协议事件编号分别记录。成功结果须同时有一致的 structured_content 与单个 text JSON，错误/畸形/冲突数据不能变成项目状态。
+
+锁定 mcp==2.3.0，显式 initialize 协议 2025-11-25，不使用自动版本探测。固定解释器与 Server 参数数组，无 shell；不传模型密钥，子进程仅继承 SDK 的 OS 环境允许列表。各协议操作默认 10 秒，SDK 关闭按有界等待与 TERM/KILL 回收；关闭超时阈值在清理完成后判断，失败会撤销有效摘要。此入口顺序运行，未设计多会话并发。
+
+基线 199 / 最终 219 项离线测试通过，含真实子进程与假模型完整消息往返；尚无 F 的真实 DeepSeek 运行或内容验收。实现限制、用量计数与清理覆盖见 [F 交接](tasks/mcp/f-minimal-mcp-handoff.md)。

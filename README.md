@@ -42,7 +42,7 @@ E2 本轮最小范围已完成，用户确认内容符合预期。E2d 两题真�
 
 2026-11-08 E3 新增模型调用只读检索工具。经真实失败诊断及 index:0 传输兼容修正后，主会话此前独立完整回归 199 项通过，两题真实链路/内容核对及用户最终确认均通过，任务 E 本轮范围验收完成；失败过程保留，未推进下一阶段。详见 [E3 交接](docs/tasks/rag/e3/e3-retrieval-tool-handoff.md) 与 [真实记录](docs/tasks/rag/e3/e3-real-review-20261108.md)。
 
-2026-11-08 F1/F2 最小 MCP 已离线实现，待主会话复核：官方 mcp==2.3.0、本地 stdio get_project 与独立 direct/mcp 两次请求入口；完整离线回归 219 项通过，含真实子进程与假模型往返。尚未调用真实 DeepSeek，演示任务及预算另行确认。见 [F 交接](docs/tasks/mcp/f-minimal-mcp-handoff.md)。
+2026-11-10 任务 F 最小 MCP 已完成，用户最终确认：官方 mcp==2.3.0、本地 stdio get_project 与独立 direct/mcp 有界入口；主会话独立 219 项离线回归、一次真实 DeepSeek 运行及摘要内容审阅通过（2 次请求、1 次工具、1364 tokens）。后续失败策略、端到端评估与 CLI 收尾尚未开展。见 [F 交接](docs/tasks/mcp/f-minimal-mcp-handoff.md)。
 
 默认运行（会联网）：`toy-agent/.venv/bin/python toy-agent/src/deepseek_summary.py`，等价于 `--project-id xingqiao --task summary`；问题摘要可用 `--project-id yunfan --task issues`，仍支持 `--config` 和 `--output`。
 

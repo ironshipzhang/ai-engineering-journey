@@ -557,6 +557,8 @@ toy-agent/.venv/bin/python toy-agent/src/retrieval_agent.py \
 
 ## 2026-11-08 F：独立项目 MCP 入口
 
+当前状态（2026-11-10）：F 已通过主会话离线/在线复核及用户最终确认，既定学习范围完成；G/H/I 尚未开展。以下保留初次实现时的说明与命令，验收演进见 [F 交接](tasks/mcp/f-minimal-mcp-handoff.md)。后续运行命令仍会产生新的 API 请求，本次收尾不执行。
+
 F1/F2 离线实现已通过 219 项完整回归，待主会话复核。依赖新增官方 `mcp==2.3.0`，精确传递版本见 `toy-agent/uv.lock`；沿用 Python 3.12/macOS arm64 的项目虚拟环境。
 
 ```sh

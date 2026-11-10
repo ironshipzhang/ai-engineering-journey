@@ -14,9 +14,9 @@
 | E2c：新问题编码与检索 | [任务书](rag/e2c/e2c-live-query-retrieval.md) | [离线实现及复核](rag/e2c/e2c-live-query-retrieval-handoff.md)，两题真实记录复核通过 |
 | E2d：资料问答与引用 | [任务书](rag/e2d/e2d-grounded-answer.md)、[两题真实审阅](rag/e2d/e2d-real-review-20261105.md) | [实施与复核交接](rag/e2d/e2d-grounded-answer-handoff.md)，168 项回归及两题真实主会话审阅通过；用户已确认符合预期，E2 本轮最小范围完成 |
 | E3：模型调用资料检索 | [任务书](rag/e3/e3-retrieval-tool.md)、[真实复核](rag/e3/e3-real-review-20261108.md) | [离线实施交接](rag/e3/e3-retrieval-tool-handoff.md)，最终回归 199 项通过；诊断及 index:0 修正后两题真实通过，主会话独立复核与用户最终确认均通过，E3 本轮范围完成，保留失败历史 |
-| F：最小 MCP 接入 | [任务书](mcp/f-minimal-mcp.md) | [离线实现交接](mcp/f-minimal-mcp-handoff.md)，基线 199 / 最终 219 项通过；真实 stdio 子进程已测，待主会话复核，真实模型调用另行确认 |
+| F：最小 MCP 接入 | [任务书](mcp/f-minimal-mcp.md) | [实现与验收交接](mcp/f-minimal-mcp-handoff.md)，2026-11-10 用户最终确认；独立 219 项回归、一次真实运行及内容复核通过，本轮范围完成 |
 
-E1–E3 的职责、入口、产物及验收边界汇总见 [任务 E 阶段交接](rag/e-stage-handoff.md)。2026-11-08 用户最终确认，任务 E 的既定学习范围正式验收完成；任务 F 已完成离线实现及交接，待主会话复核；真实模型调用另行确认。
+E1–E3 的职责、入口、产物及验收边界汇总见 [任务 E 阶段交接](rag/e-stage-handoff.md)。2026-11-08 用户最终确认，任务 E 的既定学习范围正式验收完成；任务 F 已通过主会话离线/在线复核及用户最终确认，既定学习范围完成；G/H/I 等后续阶段尚未开展。
 
 源码、测试和本地结果位置见 [项目目录](../PROJECT_STRUCTURE.md)。2026-11-04 目录整理未启动 E2c；2026-11-05 离线实现状态见对应交接。
 

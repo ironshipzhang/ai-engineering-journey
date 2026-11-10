@@ -32,7 +32,7 @@ ai_engineer/
 │   └── tasks/
 │       ├── README.md         任务索引
 │       ├── agent/            C、D、D2 任务与交接
-│       ├── mcp/              F 的 MCP 任务书及离线实现交接
+│       ├── mcp/              F 的 MCP 任务书及实现、验收交接
 │       └── rag/
 │           ├── e-stage-handoff.md  E1–E3 最终交接与验收边界
 │           ├── e3-deepseek-interaction-walkthrough.md  两轮交互及 JSON 回顾
@@ -48,7 +48,7 @@ ai_engineer/
     │   ├── c/                run-001、run-002
     │   ├── d/                D 的真实及模拟结果
     │   └── d2/               D2 结果
-    ├── mcp/f/               F 的本地验证与后续授权真实结果（按需创建）
+    ├── mcp/f/               F 的离线验证、授权真实结果及收尾预览
     └── rag/
         ├── e1/20261028/      正常 build-001 与故意损坏的 corrupt-copy
         ├── e2a/             编码验证记录

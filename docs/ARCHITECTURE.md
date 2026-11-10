@@ -243,6 +243,8 @@ trace 区分 tool_proposal、参数 validation 和实际 tool_execution；tool_e
 
 ## 2026-11-08 F：独立的项目 MCP 往返（离线完成）
 
+当前状态（2026-11-10）：本节保留离线实现时的架构记录；F 已完成独立离线/在线复核及用户最终确认，最新验收与限制见 [F 交接](tasks/mcp/f-minimal-mcp-handoff.md)。G/H/I 尚未开展。
+
 新增 `mcp_project_agent.py`：输入/输出预留/安全生成配置/项目范围前检 → direct 本地适配器，或官方 SDK ClientSession → stdio Server → get_project → 共同结果契约 → 与模型调用 ID 对应的 tool 消息 → 第二次无工具生成 → 严格三字段摘要。最多两次模型尝试、一次业务调用，独立于旧五轮 Agent 与 E2/E3；无自动重试或 fallback。
 
 业务仍由 deepseek_summary.load_projects/get_project 实现。Server 生命周期只读一次快照，下一次运行才看到文件更新；宿主另作范围及保守大小前检，没有跨进程原子快照。只暴露 get_project，发现时按固定描述与 schema 校验，向模型使用本地 schema。SDK 负责协议与 ID，模型 tool_call_id 与本地协议事件编号分别记录。成功结果须同时有一致的 structured_content 与单个 text JSON，错误/畸形/冲突数据不能变成项目状态。

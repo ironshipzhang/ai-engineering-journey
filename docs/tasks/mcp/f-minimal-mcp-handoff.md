@@ -1,6 +1,14 @@
 # F：最小 MCP 接入交接
 
+**最终状态（2026-11-10）：用户确认符合预期，任务 F 的既定学习范围正式验收完成。** 下文按发生顺序保留离线实现、复核、真实运行及待确认记录；历史“待确认”不再是当前状态。
+
 日期：2026-11-08。F1/F2 离线实现完成，待主会话复核；没有真实 DeepSeek 验收，不进入下一阶段。任务范围见 [任务书](f-minimal-mcp.md)。
+
+最新结论（2026-11-10）：主会话独立离线复核通过，无阻塞修正项；真实 DeepSeek 演示尚未执行，任务 F 不标为全部完成。下文“待复核”保留为实现时的历史状态，最新证据见末尾主会话复核。
+
+最新在线结论（2026-11-10）：一次授权的 xingqiao / summary / mcp 真实运行成功；待主会话复核与用户最终确认，不自行宣布任务 F 全部验收完成。详见末尾在线记录；以下离线结论和待授权提案保留为历史。
+
+最新主会话结论（2026-11-10）：唯一一次真实运行的保存证据与摘要内容独立复核通过，无必要修正项；等待用户最终确认，不自行关闭任务 F。详见末尾在线证据复核。
 
 ## 实现与阅读入口
 
@@ -128,3 +136,112 @@ toy-agent/.venv/bin/python toy-agent/src/mcp_project_agent.py --transport mcp --
 ```
 
 由主会话复核实现、计数、锁定版本和清理边界，再由用户确认真实任务及预算。真实运行后仍需单独对照项目原文检查摘要内容，不以结构成功代替内容验收。
+
+## 主会话独立离线复核（2026-11-10）
+
+复核对象为 587ff2d；本轮本地 HEAD 与 origin/main 引用均为该提交，开始时工作区干净，未联网刷新远端。逐项对照任务书、源码、测试、已安装 SDK 源码/元数据与 uv.lock，未发现阻塞离线验收的问题。
+
+- 实际执行完整离线回归：**219 项通过，21.580 秒**。本轮没有重建旧基线；199 项为此前基线，旧 D2/E2/E3 源码、测试未被该提交改动，已随本次完整回归通过。
+- 真实 stdio 测试确实执行：测试通过真实 anyio.open_process 创建受控解释器子进程，断言已观测进程、returncode 非空及 PID 不再存活；包含正常/未知项目、启动/发现/调用超时、异常退出、单次取消与忽略 TERM 后回收。F2 成功路径使用假模型与真实 MCP 子进程，验证 direct/mcp 业务结果相同、消息 ID 绑定、两次请求/一次业务调用、无补偿请求。
+- Server 复用原有 load_projects/get_project，仅提供 get_project；宿主与 Server 均有业务契约校验，错误结果不作为项目状态。前检、输出独占预留、安全错误、已知/未知用量及失败后的记录保留符合本轮要求。
+- 安装的 30 个分发包版本全部匹配锁文件，锁图 33 包，新增 28 个分发包，RECORD 文件大小合计约 24.54 MiB；mcp/mcp-types 为 2.3.0、许可证元数据 MIT，本地 SDK MIT 文本已核对，原生扩展 wheel 为 arm64 可用标签。未安装依赖或访问公开包服务；本轮不重新声称该版本是当前最新稳定版，也不重新核实公开价格。
+- 对照锁定 SDK：initialize 使用 2025-11-25；退出路径在取消屏蔽中关闭输入、分阶段等待及 TERM/KILL 回收。0.5 + 2 + 2 + 2 秒是 SDK 等待预算约数，不是整个操作的硬实时上限。项目 cleanup_timeout 默认 10 秒仅在 stack.aclose 完成后判定耗时；清理失败会使运行失败并清空有效摘要，业务先失败时保留 prior_error。该取舍与交接一致，可以接受。
+- 已重读本地 offline-20261108-001.json：外层明确 fake_model_real_local_stdio/paid_api_calls=0，内层成功、两次假模型/一次业务调用、41 个假 tokens，ID 与清理事件一致。它不是在线模型验收证据。
+- git diff --check 与 git diff --check 587ff2d^ 587ff2d 均通过。
+
+保留限制：工具发现采用受控本地 schema/描述严格匹配；日志处理仅面向顺序单运行，关闭异常信号依赖锁定 SDK；宿主/Server 快照非原子；tool_executions 不证明超时后的远端恰好一次完成；未覆盖所有操作系统、重复原生取消或不可杀进程。真实模型选择、认证、内容与实际用量均未验证，须另行授权真实提案。
+
+结论：**F1/F2 离线实现验收通过；无需先修代码。** 本轮仅文档更新，未读取真实密钥、执行真实提案、调用 DeepSeek/Embedding、提交推送或推进下一阶段。
+
+
+## 唯一一次授权真实运行（2026-11-10）
+
+用户明确授权执行 xingqiao / summary / mcp，最多两次 DeepSeek HTTP 尝试、一次 get_project，每次最多 800 输出 tokens，预算 USD 0.02；任何失败不重试。开始时工作区已有 PROGRESS 与本交接的主会话复核修改，全部保留。功能代码、项目数据、依赖与锁文件相对 587ff2d 无差异，没有修改提示词或运行策略。
+
+执行前重新核实 [DeepSeek 官方当前价格与能力](https://api-docs.deepseek.com/quick_start/pricing/)：deepseek-flash 支持 Tool Calls/JSON Output；峰值未命中输入 $0.30/百万、输出 $1.20/百万，非高峰分别 $0.15/$0.60。沿用两次输入合计预留 50,000 tokens、输出最多 1,600 tokens 的保守费用估算 $0.01692，低于授权预算后执行。50,000 是预算预留估计，程序仍只有 messages 大小/请求次数/输出上限约束，没有美元费用硬拦截；未查询余额或额度。
+
+目录已存在，检查确认 001 文件不存在，无需递增。按平台流程申请本次联网权限，程序只为模型认证使用现有配置中的 model.api_key，未输出密钥、配置、认证头或原始敏感异常；没有调用 Embedding 配置读取接口或百炼。实际命令仅执行一次：
+
+```sh
+toy-agent/.venv/bin/python toy-agent/src/mcp_project_agent.py --transport mcp --project-id xingqiao --task summary --output test-output/mcp/f/live-20261110-001.json
+```
+
+结果文件：`test-output/mcp/f/live-20261110-001.json`（Git 忽略，本地证据）。已重新读取并与终端 JSON 完整比较，相同；原文件未改写。SHA-256：`fbb6112ef48ef2a2ad81fcdda31d2ccac97bac745bf631858290f9f1fac087d8`。
+
+程序退出码 0，status=succeeded、error=null；实际两次模型尝试、一次业务调用，没有补偿、重试、direct 对比、第二个任务或代码修正复测。
+
+| 模型尝试 | HTTP | 停止原因 | 输入 tokens | 输出 tokens | 总 tokens |
+| --- | --- | --- | ---: | ---: | ---: |
+| 1 | 200 | tool_calls | 691 | 41 | 732 |
+| 2 | 200 | stop | 565 | 67 | 632 |
+| 累计 | — | — | 1256 | 108 | 1364 |
+
+各轮用量均有效，重新求和与累计一致，complete=true。按全部输入未命中的峰值费率保守估算：`1256 × 0.30 / 1e6 + 108 × 1.20 / 1e6 = USD 0.0005064`，低于 USD 0.02。未按缓存命中或非高峰折扣扣减，不是实际账单。
+
+机制核对：
+
+- trace 顺序为 mcp_prepare → mcp_discovery → model_request(1) → tool_validation → tool_execution → mcp_call → model_request(2) → mcp_cleanup → completed，状态均成功/validated。
+- 初始化记录协议 2025-11-25，发现预期 get_project，实际通过真实 SDK Client/Server 子进程执行，local_call_number=1。首轮可选 index:0 被校验并移除，transport_index_removed=true。
+- assistant 中唯一调用为 get_project，参数 project_id=xingqiao；调用 ID 与 tool_call_id 都为 `call_00_05ymLDRrdQtRsbHKDNwz0228`。tool_exchange.sent_to_model=true。
+- tool.content 解出的 project_id/name/status 与运行后重读的虚构项目数据逐字段完全一致，项目为星桥。项目数据相对 587ff2d 无变更。
+- 第二次请求在未改动的 execute 中调用 request(record,key,messages)，不传 tools；request 转交 generation.request_answer 时同样不传 tools，HTTP 构建器只在显式传入时添加该字段。结合本轮进入第二次请求/stop 的轨迹与已通过的消息测试核对；本次没有抓取原始 HTTP 请求报文，不把源码推导描述为 wire 报文证据。
+- MCP 清理事件 succeeded，后续 completed=succeeded，CLI 正常退出。独立使用 `pgrep -f '[p]roject_mcp_server.py'` 复核退出后无匹配进程（退出 1、无输出）；沙箱内首次进程查询受限制，按平台流程提升权限后完成，只查进程、未重跑在线任务。本轮没有记录 Server PID，不能提供 PID 级历史快照。
+- 摘要仅有 progress/blockers/next_steps，均为非空字符串数组（允许空数组）；结构有效。原 JSON 的 semantic_review=not_performed 保持不变。
+
+### 实现会话的内容审阅（不回填原 JSON）
+
+本次模型依据的是 get_project 返回的 status，不把 issues 中未提供的细节当作本次证据。
+
+| 摘要内容 | 对照 status 的审阅 |
+| --- | --- |
+| 登录接口和项目列表接口已实现；12 个单元测试通过 | 原文明示，未增加完成范围或测试数量 |
+| 项目详情页面正在联调 | 保留进行中状态，没有写成联调已完成 |
+| 数据库迁移失败，负责人小林正在排查 | 阻塞与负责人/排查动作均有原文支持；没有补造失败原因或解决结果 |
+| 演示时间存在延期风险 | 原文明示，风险保留在 blockers |
+| 修复迁移后完成联调 | 保留“修复后”的前提，未写成迁移已修复 |
+| 计划周五演示 | 保留计划语气，同时 blockers 保留延期风险，没有确定承诺或推算具体日期 |
+
+实现会话 AI 辅助对照结论：本例关键事实、阻塞、风险和计划条件均保留，未发现新增事实。该意见单独记录，不等于用户最终确认、主会话独立内容审阅或通用摘要准确率。
+
+本轮仅执行一次真实成功任务并更新两份文档，功能代码不变，未重复完整回归；219 项是本日主会话此前独立离线复核结果。git diff --check 通过。未验证更多项目、其他模型选择、线上失败场景、跨设备/区域可用性、实际账单或生产可靠性。没有 Embedding 请求、文档重编码、提交推送或后续阶段工作。
+
+交接结论：**真实运行完成，待主会话复核与用户最终确认。** 复核入口为本节和原始本地 JSON；本次授权任务已结束，不再追加模型请求。
+
+## 主会话在线证据与内容独立复核（2026-11-10）
+
+结论：**本次真实运行记录与摘要内容复核通过，无必要修正项；待用户最终确认，任务 F 尚不自行关闭。** 未重新执行 CLI、模型请求或 MCP Server。
+
+已直接读取 live-20261110-001.json 原始字节并重新计算 SHA-256，结果为 `fbb6112ef48ef2a2ad81fcdda31d2ccac97bac745bf631858290f9f1fac087d8`，与用户指定值一致；未改写原始 JSON，semantic_review=not_performed 保持不变。
+
+独立核查结果：
+
+- status=succeeded、transport=mcp、project_id=xingqiao、error=null；model_requests=2、tool_executions=1。9 个 trace 事件的顺序、成功/validated 状态、2025-11-25 初始化、get_project 发现、local_call_number=1 及清理/完成事件均与交接一致。
+- 两次已保存请求事件均为 HTTP 200，停止原因 tool_calls → stop；逐轮用量 691+41=732、565+67=632；累计输入 1256、输出 108、总计 1364，complete=true，求和一致。
+- 唯一调用为 get_project，参数严格为 project_id=xingqiao；规范化 assistant 调用 ID、tool_call_id 与 tool_execution.call_id 均为 call_00_05ymLDRrdQtRsbHKDNwz0228，sent_to_model=true。
+- tool.content 中的 project_id/name/status 与当前项目文件逐字段相等。源码、测试、项目数据、依赖及锁文件相对 587ff2d 无差异，因此本轮原文比较未使用被改动的数据。
+- 第二次请求不含 tools 是源码推导：mcp_project_agent.py 的次轮 request 调用没有 tools 参数，转发到 request_answer 时同样不传；grounded_answer.py 仅在 tools 非 None 时写入 HTTP payload。保存的 tool_exchange/请求事件与该路径一致，但没有完整 HTTP 请求/响应或 MCP wire 报文，不将其称为报文抓取证据。
+- 清理成功、最终完成成功有 JSON 轨迹支持；CLI 退出码 0、运行后 pgrep 无匹配 Server 是实现会话当时的观测记录。原始 JSON 没有进程 PID、pgrep 输出或退出码；本次未独立重跑，不能补造历史 PID 级证据。
+- 按交接记载的峰值未命中费率，用 Decimal 复算 1256×0.30/1e6 + 108×1.20/1e6 = USD 0.0005064，低于授权 USD 0.02。只复核算式与记录费率，未重新联网核价、查询账单/余额或确认实际缓存折扣，不将估算当实际扣费。
+
+主会话内容审阅仅以本次发送的 get_project.status 为证据，不使用未发送的 issues：
+
+| 输出 | 原文支持与判断 |
+| --- | --- |
+| 登录接口和项目列表接口已实现；12 个单元测试通过 | 与已完成描述一致，无扩大范围或数量 |
+| 项目详情页面正在联调 | 保留进行中状态，无改写为完成 |
+| 测试环境数据库迁移失败，负责人小林正在排查 | 当前阻塞、负责人及排查关联完整；未添加原因或解决结果 |
+| 演示时间存在延期风险 | 原文明示风险，保留于 blockers |
+| 修复迁移后完成联调 | 保留修复后的前提，未写成已经修复 |
+| 计划周五演示 | 保留计划语气，结合 blockers 保留延期风险；未推算日期或作确定承诺 |
+
+本例 status 中的重要事实、阻塞、风险及计划条件均保留，未发现事实遗漏或编造。这是主会话 AI 辅助内容审阅，不是运行时自动语义验证、用户最终确认或通用准确率结论。
+
+本轮只更新 PROGRESS 与本交接，保留既有离线/在线记录；git diff --check 通过。功能代码未改，未重复完整回归，219 项仍指此前独立离线结果。未读取真实密钥、调用模型/Embedding、重跑在线任务、提交推送或推进下一阶段；其他项目、在线失败场景、跨平台及生产可靠性仍未验证。
+
+## 用户最终确认与收尾（2026-11-10）
+
+用户在主会话明确确认“符合预期”，任务 F 正式关闭。验收包含 F1/F2 最小本地 stdio MCP、独立 direct/mcp 编排、此前主会话独立 219 项离线回归及唯一一次真实运行的证据/摘要内容复核。没有未完成的阻塞修正项。
+
+本次只更新进度、路线、任务索引、README、SVG 和本交接，不修改功能代码或原始结果，不新增模型调用或重复回归；原始 semantic_review=not_performed 与 SHA-256 保持。远程 HTTP、多 Server、企业认证、并发、通用准确率及生产可靠性不属于已验收范围。后续 G/H/I 尚未启动；提交推送另行授权。
+
+收尾检查补充：各入口状态与本地文档链接/运行路径已核对；SETUP、ARCHITECTURE 和任务书补充当前状态指引，历史结论保留。使用本机已有 sharp 渲染 SVG 为 2400×3320 PNG 并目视检查，文字无遮挡，F 为绿色完成节点，G/H/I 为灰色待开展节点；预览位于忽略目录 `test-output/mcp/f/closeout-20261110/progress.png`。未新增项目依赖。git diff --check 通过，原始在线 JSON 的 SHA-256 和 semantic_review 保持不变。
